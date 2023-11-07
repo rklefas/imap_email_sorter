@@ -12,7 +12,16 @@ def getyear(dateheader):
 
 
 
-def getfrom(fromhead):
+def getfromname(fromhead):
+    frommer = str(fromhead.strip())
+    frommer = frommer[0:frommer.index('<')]
+    frommer = frommer.replace('From: ', '')
+    frommer = frommer.strip()
+    return frommer
+
+
+
+def getfromemail(fromhead):
     frommer = str(fromhead.strip())
     frommer = frommer[frommer.index('<'):-1]
     frommer = frommer.strip('<')
@@ -34,7 +43,8 @@ def determinefolder(num):
     typ, dateX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (DATE)])')
     
     FOLDERSTACK = ["AUTOSORT"]
-    FOLDERSTACK.append(rearrangefrom(getfrom(fromX[0][1].decode())))
+    FOLDERSTACK.append(rearrangefrom(getfromemail(fromX[0][1].decode())))
+    FOLDERSTACK.append(getfromname(fromX[0][1].decode()))
     FOLDERSTACK.append(getyear(dateX[0][1].decode()))
     
     return FOLDERSTACK
@@ -120,10 +130,12 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
     yearX = getyear(dateX[0][1].decode())
 
 
-    typ, data = imap_ssl.search(None, '(SINCE "01-Jan-'+yearX+'" BEFORE "31-Dec-'+yearX+'" FROM "'+getfrom(fromX[0][1].decode().strip())+'")')
+    searchString = '(SINCE "01-Jan-'+yearX+'" BEFORE "31-Dec-'+yearX+'" FROM "'+getfromname(fromX[0][1].decode().strip())+' '+getfromemail(fromX[0][1].decode().strip())+'")'
+
+    typ, data = imap_ssl.search(None, searchString)
     
     print("Emails searched and found:       {}".format(len(data[0].decode().split())))
-
+    print("  ", searchString)
     
     for num in data[0].decode().split():
     
@@ -137,13 +149,14 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
        
         try:
         
-            moveemail(FOLDERSTACK, num)
+            moveemail(FOLDERSTACK, data[0].decode())
     
         except Exception as e:
         
             print('  Failed to move email!')
+            print(e)
             createfolder(num)
-            moveemail(FOLDERSTACK, num)
+            moveemail(FOLDERSTACK, data[0].decode())
 
             
     ############# Close Selected Mailbox #######################
