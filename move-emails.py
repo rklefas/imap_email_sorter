@@ -16,6 +16,7 @@ def getfromname(fromhead):
     frommer = str(fromhead.strip())
     frommer = frommer[0:frommer.index('<')]
     frommer = frommer.replace('From: ', '')
+    frommer = frommer.replace('"', '')
     frommer = frommer.strip()
     return frommer
 
@@ -53,19 +54,20 @@ def determinefolder(num):
 def createfolder(num):
 
     FOLDERSTACK = determinefolder(num)
+    ROOTFOLDER = '/'.join(FOLDERSTACK)
     
     pack = ''
 
-    for FOLDER in FOLDERSTACK:
-        pack = pack + '/' + FOLDER
-        pack = pack.strip('/')
+    print('Check for folder:', ROOTFOLDER)
         
-        print('Check for folder:', pack)
-        
-        if input('  Do you want to create this folder? ').lower().strip() == 'y':
+    if input('  Do you want to create this folder? ').lower().strip() == 'y':
+        for FOLDER in FOLDERSTACK:
+            pack = pack + '/' + FOLDER
+            pack = pack.strip('/')
+            
             imap_ssl.create('"'+pack+'"')
-        else:
-            return ['AUTOREVIEW']
+    else:
+        return ['AUTOREVIEW']
         
     return FOLDERSTACK
     
@@ -74,26 +76,35 @@ def createfolder(num):
 
 def moveemail(FOLDERSTACK, num):
 
-    return True
-
     ROOTFOLDER = '/'.join(FOLDERSTACK)
     
     print('Moving email to:', ROOTFOLDER)
     
-    imap_ssl.copy(num, ROOTFOLDER)
-    imap_ssl.store(num, '+FLAGS', '\\Deleted')
+#    return True
 
+    imap_ssl.uid('COPY', num, '"'+ROOTFOLDER+'"')
+    print('  Copied', num)
+    
+    imap_ssl.uid('STORE', num, '+FLAGS', '\\Deleted')
+    print('  Deleted', num)
+    
     return True
 
 
+def println(key, value):
+    print(key, '           ', value)
+
+
+
 def showemail(num):
+
+    print('\nMessage # %s' % (num))
+
     typ, fromX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (FROM)])')
-    print(fromX[0][1].decode().strip())
-    
     typ, dateX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (DATE)])')
-    print(dateX[0][1].decode().strip())
-    
     typ, subjectX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (SUBJECT)])')
+    
+    print(dateX[0][1].decode().strip(), '   ', fromX[0][1].decode().strip())
     print(subjectX[0][1].decode().strip())
 
 
@@ -106,7 +117,7 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
 
     ############### Login to Mailbox ######################
     
-    print("Logging into mailbox:   ", configs['host'])
+    println("Logging into mailbox:   ", configs['host'])
     resp_code, response = imap_ssl.login(configs['user'], configs['pass'])
 
     print("Login Result:            {}".format(resp_code))
@@ -117,47 +128,39 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
     print("Fetch Inbox Count:       {}".format(mail_count[0].decode()))
     
     
-    peekEmail = input('How many emails to sort? ')
+    for num in range(1, 6):
+        showemail(str(num))
     
-    
-    
-    showemail(peekEmail)
+    print("")
+    print("")
+    peekEmail = input('WHICH emails to sort? ')
     
     typ, fromX = imap_ssl.fetch(peekEmail, '(RFC822.SIZE BODY[HEADER.FIELDS (FROM)])')
-    print(fromX[0][1].decode().strip())
-    
     typ, dateX = imap_ssl.fetch(peekEmail, '(RFC822.SIZE BODY[HEADER.FIELDS (DATE)])')
     yearX = getyear(dateX[0][1].decode())
 
-
     searchString = '(SINCE "01-Jan-'+yearX+'" BEFORE "31-Dec-'+yearX+'" FROM "'+getfromname(fromX[0][1].decode().strip())+' '+getfromemail(fromX[0][1].decode().strip())+'")'
 
-    typ, data = imap_ssl.search(None, searchString)
+    typ, data = imap_ssl.uid('search', None, searchString)
     
     print("Emails searched and found:       {}".format(len(data[0].decode().split())))
-    print("  ", searchString)
+    println("Query", searchString)
     
-    for num in data[0].decode().split():
+    FOLDERSTACK = determinefolder(peekEmail)
+    createfolder(peekEmail)
     
-        
-        print('\nMessage # %s' % (num))
-
-        showemail(num)
-        
-        FOLDERSTACK = determinefolder(num)
-
-       
+    print(data)
+    
+    for this_uid in data[0].decode().split():
+    
         try:
         
-            moveemail(FOLDERSTACK, data[0].decode())
-    
+            moveemail(FOLDERSTACK, this_uid)
+
         except Exception as e:
         
             print('  Failed to move email!')
             print(e)
-            createfolder(num)
-            moveemail(FOLDERSTACK, data[0].decode())
 
-            
     ############# Close Selected Mailbox #######################
     imap_ssl.close()
