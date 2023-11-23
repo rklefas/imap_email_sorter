@@ -4,8 +4,18 @@ from dateutil.parser import *
 import json
 import winsound
 from win32com.client import Dispatch
+from inputimeout import inputimeout, TimeoutOccurred
 
 # ---------------
+# ---------------
+
+def do_log(message):
+    dateX = datetime.now().strftime("%Y-%m-%d")
+    timeX = datetime.now().strftime(" %H:%M:%S")
+    file1 = open('logs/' + dateX + "-actions.log", "a")
+    file1.write(dateX + timeX + " " + message + "\n")
+    file1.close()
+
 # ---------------
 
 def getyear(dateheader):
@@ -60,6 +70,25 @@ def determinefolder(num):
 def spokeninput(q):
     Dispatch("SAPI.SpVoice").Speak(q)
     return input(q)
+    
+# ---------------
+    
+def spokeninputtimeout(q, default):
+    Dispatch("SAPI.SpVoice").Speak(q)
+    
+    try:
+        return inputimeout(q + ' (default : ' + default + ')', 15)
+    except TimeoutOccurred:
+        Dispatch("SAPI.SpVoice").Speak('Using default value '+default)
+
+        return default
+
+# ---------------
+
+def speakline(key, val):
+    println(key, val)
+    do_log(key + ' ' + val)
+    Dispatch("SAPI.SpVoice").Speak(key + ' ' + val)
 
 # ---------------
 
@@ -72,7 +101,7 @@ def createfolder(num):
 
     print('Check for folder:', ROOTFOLDER)
         
-    if spokeninput('  Do you want to create this folder? ').lower().strip() == 'y':
+    if spokeninputtimeout('  Do you want to create this folder? ', 'y').lower().strip() == 'y':
         for FOLDER in FOLDERSTACK:
             pack = pack + '/' + FOLDER
             pack = pack.strip('/')
@@ -104,7 +133,8 @@ def moveemail(FOLDERSTACK, num):
 # ---------------
 
 def println(key, value):
-    print(key, '           ', value)
+    timeX = datetime.now().strftime("%H:%M:%S ")
+    print(timeX, key, '           ', value)
 
 # ---------------
 
@@ -133,14 +163,13 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
     println("Logging into mailbox:   ", configs['host'])
     resp_code, response = imap_ssl.login(configs['user'], configs['pass'])
 
-    print("Login Result:            {}".format(resp_code))
+    println("Login Result:           ", str(resp_code))
 
     #################### List Emails #####################
     
     resp_code, mail_count = imap_ssl.select(mailbox='"INBOX"')
-    print("Fetch Inbox Count:       {}".format(mail_count[0].decode()))
+    speakline("Inbox Count:", str(mail_count[0].decode()))
 
-    Dispatch("SAPI.SpVoice").Speak("you have logged in.  your inbox has "+str(mail_count[0].decode())+' emails')
  
     
     while True:
@@ -151,7 +180,7 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
         print("")
         print("")
         
-        peekEmail = spokeninput('WHICH emails to sort? ')
+        peekEmail = spokeninputtimeout('WHICH emails to sort? ', '1')
         
         if (peekEmail == ''):
             break
@@ -164,8 +193,8 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
 
         typ, data = imap_ssl.uid('search', None, searchString)
         
-        print("Emails searched and found:       {}".format(len(data[0].decode().split())))
-        println("Query", searchString)
+        speakline("Query", searchString)
+        speakline("Emails searched and found:", str(len(data[0].decode().split())))
         
         FOLDERSTACK = determinefolder(peekEmail)
         createfolder(peekEmail)
@@ -184,6 +213,7 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
                 print(e)
 
 
+        speakline("Emails sorted:", str(len(data[0].decode().split())))
 
     ############# Close Selected Mailbox #######################
     imap_ssl.close()
