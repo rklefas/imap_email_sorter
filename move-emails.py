@@ -1,4 +1,4 @@
-import imaplib
+import imap_tools
 from datetime import datetime
 from dateutil.parser import *
 import json
@@ -18,29 +18,8 @@ def do_log(message):
 
 # ---------------
 
-def getyear(dateheader):
-    lessdate = str(dateheader.strip())
-    lessdate = lessdate.replace('Date: ', '')
-    lessdate = parse(lessdate)
-    return lessdate.strftime('%Y')
-
-# ---------------
-
-def getfromname(fromhead):
-    frommer = str(fromhead.strip())
-    frommer = frommer[0:frommer.index('<')]
-    frommer = frommer.replace('From: ', '')
-    frommer = frommer.replace('"', '')
-    frommer = frommer.strip()
-    return frommer
-
-# ---------------
-
-def getfromemail(fromhead):
-    frommer = str(fromhead.strip())
-    frommer = frommer[frommer.index('<'):-1]
-    frommer = frommer.strip('<')
-    return frommer
+def show_message(msg):
+    print(msg.uid, msg.date, msg.from_values.name, msg.from_values.email, len(msg.text or msg.html))
 
 # ---------------
 
@@ -53,15 +32,12 @@ def rearrangefrom(frommer):
 
 # ---------------
 
-def determinefolder(num):
+def determinefolder(msg):
 
-    typ, fromX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (FROM)])')
-    typ, dateX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (DATE)])')
-    
-    FOLDERSTACK = ["PYTHON-SORT"]
-    FOLDERSTACK.append(rearrangefrom(getfromemail(fromX[0][1].decode())))
-    FOLDERSTACK.append(getfromname(fromX[0][1].decode()))
-    FOLDERSTACK.append(getyear(dateX[0][1].decode()))
+    FOLDERSTACK = ["TEST-SORT"]
+    FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
+    FOLDERSTACK.append(msg.from_values.name)
+    FOLDERSTACK.append(msg.date.strftime('%Y'))
     
     return FOLDERSTACK
 
@@ -77,7 +53,7 @@ def spokeninputtimeout(q, default):
     Dispatch("SAPI.SpVoice").Speak(q)
     
     try:
-        return inputimeout(q + ' (default : ' + default + ')', 15)
+        return inputimeout(q + ' (default : ' + default + ') ', 10)
     except TimeoutOccurred:
         Dispatch("SAPI.SpVoice").Speak('Using default value '+default)
 
@@ -92,62 +68,34 @@ def speakline(key, val):
 
 # ---------------
 
-def createfolder(num):
+def createfolder(FOLDERSTACK, mailbox):
 
-    FOLDERSTACK = determinefolder(num)
     ROOTFOLDER = '/'.join(FOLDERSTACK)
     
     pack = ''
 
-    print('Check for folder:', ROOTFOLDER)
+    println('Check for folder:', ROOTFOLDER)
         
-    if spokeninputtimeout('  Do you want to create this folder? ', 'y').lower().strip() == 'y':
-        for FOLDER in FOLDERSTACK:
-            pack = pack + '/' + FOLDER
-            pack = pack.strip('/')
+    for FOLDER in FOLDERSTACK:
+        pack = pack + '/' + FOLDER
+        pack = pack.strip('/')
             
-            imap_ssl.create('"'+pack+'"')
-    else:
-        return ['AUTOREVIEW']
+        if mailbox.folder.exists(pack) == False:
+        
+            println('  Does not exist:', pack)
+
+            if spokeninputtimeout('  Do you want to create this folder? ', 'y').lower().strip() == 'y':
+                mailbox.folder.create(pack)
+            else:
+                return ['AUTOREVIEW']
         
     return FOLDERSTACK
     
 # ---------------
 
-def moveemail(FOLDERSTACK, num):
-
-    ROOTFOLDER = '/'.join(FOLDERSTACK)
-    
-    print('Moving email to:', ROOTFOLDER)
-    
-#    return True
-
-    imap_ssl.uid('COPY', num, '"'+ROOTFOLDER+'"')
-    print('  Copied', num)
-    
-    imap_ssl.uid('STORE', num, '+FLAGS', '\\Deleted')
-    print('  Deleted', num)
-    
-    return True
-
-# ---------------
-
 def println(key, value):
     timeX = datetime.now().strftime("%H:%M:%S ")
     print(timeX, key, '           ', value)
-
-# ---------------
-
-def showemail(num):
-
-    print('\nMessage # %s' % (num))
-
-    typ, fromX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (FROM)])')
-    typ, dateX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (DATE)])')
-    typ, subjectX = imap_ssl.fetch(num, '(RFC822.SIZE BODY[HEADER.FIELDS (SUBJECT)])')
-    
-    print(dateX[0][1].decode().strip(), '   ', fromX[0][1].decode().strip())
-    print(subjectX[0][1].decode().strip())
 
 # ---------------
 # ---------------
@@ -156,26 +104,24 @@ configs = json.load(open('./config.json', 'r'))
 
 ################ IMAP SSL ##############################
 
-with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as imap_ssl:
+with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass']) as server:
 
     ############### Login to Mailbox ######################
     
     println("Logging into mailbox:   ", configs['host'])
-    resp_code, response = imap_ssl.login(configs['user'], configs['pass'])
-
-    println("Login Result:           ", str(resp_code))
 
     #################### List Emails #####################
     
-    resp_code, mail_count = imap_ssl.select(mailbox='"INBOX"')
-    speakline("Inbox Count:", str(mail_count[0].decode()))
-
+    stat = server.folder.status('INBOX')
+    print(stat)
  
     
     while True:
+        preview = list(server.fetch(limit=7))
+        
+        for msg in preview:
+            show_message(msg)
     
-        for num in range(1, 7):
-            showemail(str(num))
         
         print("")
         print("")
@@ -185,27 +131,32 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
         if (peekEmail == ''):
             break
         
-        typ, fromX = imap_ssl.fetch(peekEmail, '(RFC822.SIZE BODY[HEADER.FIELDS (FROM)])')
-        typ, dateX = imap_ssl.fetch(peekEmail, '(RFC822.SIZE BODY[HEADER.FIELDS (DATE)])')
-        yearX = getyear(dateX[0][1].decode())
-
-        searchString = '(SINCE "01-Jan-'+yearX+'" BEFORE "31-Dec-'+yearX+'" FROM "'+getfromname(fromX[0][1].decode().strip())+' '+getfromemail(fromX[0][1].decode().strip())+'")'
-
-        typ, data = imap_ssl.uid('search', None, searchString)
+        selectedEmail = preview[int(peekEmail)]
         
+        fromX = selectedEmail.from_values
+        yearX = selectedEmail.date.strftime('%Y')
+        FOLDERSTACK = determinefolder(selectedEmail)
+        createfolder(FOLDERSTACK, server)
+
+        searchString = 'FROM "'+fromX.name+' '+fromX.email+'" SINCE "01-Jan-'+yearX+'" BEFORE "31-Dec-'+yearX+'"'
         speakline("Query", searchString)
-        speakline("Emails searched and found:", str(len(data[0].decode().split())))
+
+        results = list(server.fetch(searchString))
+        counting = 0
+        ROOTFOLDER = '/'.join(FOLDERSTACK)
         
-        FOLDERSTACK = determinefolder(peekEmail)
-        createfolder(peekEmail)
+        speakline("   Result Count", str(len(results)))
+        println('  Moving emails to:', ROOTFOLDER)
         
-        print(data)
-        
-        for this_uid in data[0].decode().split():
+
+        for msg in results:
+            show_message(msg)
         
             try:
-            
-                moveemail(FOLDERSTACK, this_uid)
+                
+                server.move(msg.uid, ROOTFOLDER)
+                
+                counting = counting + 1
 
             except Exception as e:
             
@@ -213,7 +164,5 @@ with imaplib.IMAP4_SSL(host=configs['host'], port=imaplib.IMAP4_SSL_PORT) as ima
                 print(e)
 
 
-        speakline("Emails sorted:", str(len(data[0].decode().split())))
+        speakline("Emails sorted:", str(counting))
 
-    ############# Close Selected Mailbox #######################
-    imap_ssl.close()
