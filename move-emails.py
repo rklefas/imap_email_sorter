@@ -1,8 +1,6 @@
 import imap_tools
 from datetime import datetime
-from dateutil.parser import *
 import json
-import winsound
 from win32com.client import Dispatch
 from inputimeout import inputimeout, TimeoutOccurred
 
@@ -18,8 +16,9 @@ def do_log(message):
 
 # ---------------
 
-def show_message(msg):
-    print(msg.uid, msg.date, msg.from_values.name, msg.from_values.email, len(msg.text or msg.html))
+def show_message(index, msg):
+    print('Email', index, ' | ', msg.from_values.name, '  ', msg.from_values.email, '  ', msg.date)
+    print('         |           ', msg.subject, msg.uid, len(msg.text or msg.html))
 
 # ---------------
 
@@ -51,12 +50,11 @@ def spokeninput(q):
     
 def spokeninputtimeout(q, default):
     Dispatch("SAPI.SpVoice").Speak(q)
-    
+
     try:
-        return inputimeout(q + ' (default : ' + default + ') ', 10)
+        return inputimeout(q + ' (default : ' + default + ') ', 30)
     except TimeoutOccurred:
         Dispatch("SAPI.SpVoice").Speak('Using default value '+default)
-
         return default
 
 # ---------------
@@ -70,24 +68,24 @@ def speakline(key, val):
 
 def createfolder(FOLDERSTACK, mailbox):
 
-    ROOTFOLDER = '/'.join(FOLDERSTACK)
-    
+    FULLPATH = '/'.join(FOLDERSTACK)
     pack = ''
 
-    println('Check for folder:', ROOTFOLDER)
-        
-    for FOLDER in FOLDERSTACK:
-        pack = pack + '/' + FOLDER
-        pack = pack.strip('/')
-            
-        if mailbox.folder.exists(pack) == False:
-        
-            println('  Does not exist:', pack)
+    println('Check for folder', FULLPATH)
 
-            if spokeninputtimeout('  Do you want to create this folder? ', 'y').lower().strip() == 'y':
-                mailbox.folder.create(pack)
-            else:
-                return ['AUTOREVIEW']
+    if mailbox.folder.exists(FULLPATH) == False:
+        if spokeninputtimeout('  Do you want to create this folder? ', 'y').lower().strip() == 'y':
+        
+            for FOLDER in FOLDERSTACK:
+                pack = pack + '/' + FOLDER
+                pack = pack.strip('/')
+                    
+                if mailbox.folder.exists(pack) == False:
+                
+                    println('  Creating folder', pack)
+                    mailbox.folder.create(pack)
+        else:
+            return createfolder(['AUTOREVIEW'])
         
     return FOLDERSTACK
     
@@ -95,38 +93,38 @@ def createfolder(FOLDERSTACK, mailbox):
 
 def println(key, value):
     timeX = datetime.now().strftime("%H:%M:%S ")
-    print(timeX, key, '           ', value)
+    print(timeX, key, ':           ', value)
 
 # ---------------
 # ---------------
 
 configs = json.load(open('./config.json', 'r'))
 
-################ IMAP SSL ##############################
+############### Login to Mailbox ######################
 
 with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass']) as server:
 
-    ############### Login to Mailbox ######################
-    
-    println("Logging into mailbox:   ", configs['host'])
+    println("Logged into mailbox", configs['host'])
 
     #################### List Emails #####################
     
     stat = server.folder.status('INBOX')
     print(stat)
- 
+
     
     while True:
         preview = list(server.fetch(limit=7))
+
+        print("")
+        print("")
         
-        for msg in preview:
-            show_message(msg)
+        for index, msg in enumerate(preview):
+            show_message(index, msg)
     
-        
         print("")
         print("")
         
-        peekEmail = spokeninputtimeout('WHICH emails to sort? ', '1')
+        peekEmail = spokeninputtimeout('Pick an email to sort. ', '0')
         
         if (peekEmail == ''):
             break
@@ -135,26 +133,28 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         
         fromX = selectedEmail.from_values
         yearX = selectedEmail.date.strftime('%Y')
-        FOLDERSTACK = determinefolder(selectedEmail)
-        createfolder(FOLDERSTACK, server)
 
         searchString = 'FROM "'+fromX.name+' '+fromX.email+'" SINCE "01-Jan-'+yearX+'" BEFORE "31-Dec-'+yearX+'"'
         speakline("Query", searchString)
 
         results = list(server.fetch(searchString))
-        counting = 0
-        ROOTFOLDER = '/'.join(FOLDERSTACK)
+        FOLDERSTACK = determinefolder(selectedEmail)
         
-        speakline("   Result Count", str(len(results)))
-        println('  Moving emails to:', ROOTFOLDER)
+        createfolder(FOLDERSTACK, server)
+        
+        counting = 0
+        FULLPATH = '/'.join(FOLDERSTACK)
+        
+        speakline("  Result Count", str(len(results)))
+        println('  Moving emails to', FULLPATH)
         
 
-        for msg in results:
-            show_message(msg)
+        for index, msg in enumerate(results):
+            show_message(index, msg)
         
             try:
                 
-                server.move(msg.uid, ROOTFOLDER)
+                server.move(msg.uid, FULLPATH)
                 
                 counting = counting + 1
 
