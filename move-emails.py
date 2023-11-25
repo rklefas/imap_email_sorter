@@ -148,23 +148,25 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         speakline("Query", searchString)
         speakline("  Emails Found", str(len(results)))
                
-        counting = 0
         FOLDERSTACK = determinefolder(selectedEmail)
         FULLPATH = createfolder(FOLDERSTACK, server)      
         println('  Moving emails to', FULLPATH)
+        
+        EMAILLIST = []
 
         for index, msg in enumerate(results):
-            show_message(index, msg)
+            show_message(index, msg)        
+            EMAILLIST.append(msg.uid)
         
-            try:
-                
-                server.move(msg.uid, FULLPATH)
-                counting = counting + 1
-
-            except Exception as e:
+        try:
             
-                print('  Failed to move email!')
-                print(e)
+            server.move(','.join(EMAILLIST), FULLPATH)
+            counting = len(EMAILLIST)
+
+        except Exception as e:
+        
+            print('  Failed to move emails!')
+            print(e)
 
 
         speakline("Emails sorted from " + fromX.name, str(counting))
