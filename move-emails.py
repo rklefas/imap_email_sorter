@@ -18,7 +18,7 @@ def do_log(message):
 
 def show_message(index, msg):
     print('Email', index, ' | ', msg.from_values.name, '  ', msg.from_values.email, '  ', msg.date)
-    print('         |           ', msg.subject, msg.uid, len(msg.text or msg.html))
+    print('         |           ', msg.subject[0:50], msg.uid, len(msg.text or msg.html))
 
 # ---------------
 
@@ -54,7 +54,7 @@ def spokeninputtimeout(q, default):
     global dynamic_timeout
 
     try:
-        val = inputimeout(q + ' (' + str(dynamic_timeout) + ' sec timeout default : ' + default + ') ', dynamic_timeout)
+        val = inputimeout(q + ' (' + str(dynamic_timeout) + ' sec timeout, default : ' + default + ') ', dynamic_timeout)
         dynamic_timeout = max_timeout
         return val
     except TimeoutOccurred:
@@ -142,11 +142,11 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         fromX = selectedEmail.from_values
         yearX = selectedEmail.date.strftime('%Y')
 
-        searchString = 'FROM "'+fromX.name+' '+fromX.email+'" SINCE "01-Jan-'+yearX+'" BEFORE "31-Dec-'+yearX+'"'
+        searchString = 'FROM "'+fromX.name+' '+fromX.email+'"'
 
-        results = list(server.fetch(searchString, limit=100, bulk=True))
-        speakline("Query", searchString)
-        speakline("  Emails Found", str(len(results)))
+        results = list(server.fetch(searchString, limit=500, bulk=True))
+        println("Query", searchString)
+        speakline("  Emails from " + fromX.name, str(len(results)))
                
         FOLDERSTACK = determinefolder(selectedEmail)
         FULLPATH = createfolder(FOLDERSTACK, server)      
@@ -155,8 +155,15 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         EMAILLIST = []
 
         for index, msg in enumerate(results):
-            show_message(index, msg)        
-            EMAILLIST.append(msg.uid)
+        
+            thisYear = msg.date.strftime('%Y')
+        
+            if thisYear == yearX:
+                show_message(index, msg)        
+                EMAILLIST.append(msg.uid)
+            else:
+                print('  Email from ' + thisYear)
+                
         
         try:
             
@@ -169,7 +176,7 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
             print(e)
 
 
-        speakline("Emails sorted from " + fromX.name, str(counting))
+        speakline("  Emails sent in " + yearX  + " from " + fromX.name , str(counting))
         
         runtimecount = runtimecount + counting
 
