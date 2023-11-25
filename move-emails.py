@@ -33,7 +33,7 @@ def rearrangefrom(frommer):
 
 def determinefolder(msg):
 
-    FOLDERSTACK = ["TEST-SORT"]
+    FOLDERSTACK = ["PYTHON-SORT"]
     FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
     FOLDERSTACK.append(msg.from_values.name)
     FOLDERSTACK.append(msg.date.strftime('%Y'))
@@ -48,13 +48,13 @@ def spokeninput(q):
     
 # ---------------
     
-def spokeninputtimeout(q, default):
+def spokeninputtimeout(q, default, timer = 30):
     Dispatch("SAPI.SpVoice").Speak(q)
 
     try:
-        return inputimeout(q + ' (default : ' + default + ') ', 30)
+        return inputimeout(q + ' (' + str(timer) + ' sec timeout default : ' + default + ') ', timer)
     except TimeoutOccurred:
-        Dispatch("SAPI.SpVoice").Speak('Using default value '+default)
+        Dispatch("SAPI.SpVoice").Speak('Defaulted to '+default)
         return default
 
 # ---------------
@@ -110,6 +110,8 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
     
     stat = server.folder.status('INBOX')
     print(stat)
+    
+    runtimecount = 0
 
     
     while True:
@@ -135,19 +137,18 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         yearX = selectedEmail.date.strftime('%Y')
 
         searchString = 'FROM "'+fromX.name+' '+fromX.email+'" SINCE "01-Jan-'+yearX+'" BEFORE "31-Dec-'+yearX+'"'
-        speakline("Query", searchString)
 
-        results = list(server.fetch(searchString))
-        FOLDERSTACK = determinefolder(selectedEmail)
+        results = list(server.fetch(searchString, limit=100, bulk=True))
+        speakline("Query", searchString)
+        speakline("  Emails Found", str(len(results)))
         
+        FOLDERSTACK = determinefolder(selectedEmail)
         createfolder(FOLDERSTACK, server)
         
         counting = 0
         FULLPATH = '/'.join(FOLDERSTACK)
         
-        speakline("  Result Count", str(len(results)))
         println('  Moving emails to', FULLPATH)
-        
 
         for index, msg in enumerate(results):
             show_message(index, msg)
@@ -164,5 +165,8 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
                 print(e)
 
 
-        speakline("Emails sorted:", str(counting))
+        speakline("Emails sorted from " + fromX.name, str(counting))
+        
+        runtimecount = runtimecount + counting
 
+        println("Total emails sorted", str(runtimecount))
