@@ -48,13 +48,18 @@ def spokeninput(q):
     
 # ---------------
     
-def spokeninputtimeout(q, default, timer = 30):
+def spokeninputtimeout(q, default):
     Dispatch("SAPI.SpVoice").Speak(q)
+    
+    global dynamic_timeout
 
     try:
-        return inputimeout(q + ' (' + str(timer) + ' sec timeout default : ' + default + ') ', timer)
+        val = inputimeout(q + ' (' + str(dynamic_timeout) + ' sec timeout default : ' + default + ') ', dynamic_timeout)
+        dynamic_timeout = max_timeout
+        return val
     except TimeoutOccurred:
         Dispatch("SAPI.SpVoice").Speak('Defaulted to '+default)
+        dynamic_timeout = max(min_timeout, int(dynamic_timeout / 2))
         return default
 
 # ---------------
@@ -81,13 +86,12 @@ def createfolder(FOLDERSTACK, mailbox):
                 pack = pack.strip('/')
                     
                 if mailbox.folder.exists(pack) == False:
-                
                     println('  Creating folder', pack)
                     mailbox.folder.create(pack)
         else:
-            return createfolder(['AUTOREVIEW'])
+            return createfolder(['AUTOREVIEW'], mailbox)
         
-    return FOLDERSTACK
+    return FULLPATH
     
 # ---------------
 
@@ -99,6 +103,9 @@ def println(key, value):
 # ---------------
 
 configs = json.load(open('./config.json', 'r'))
+min_timeout = 3
+max_timeout = 120
+dynamic_timeout = max_timeout
 
 ############### Login to Mailbox ######################
 
@@ -112,7 +119,6 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
     print(stat)
     
     runtimecount = 0
-
     
     while True:
         preview = list(server.fetch(limit=7))
@@ -141,13 +147,10 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         results = list(server.fetch(searchString, limit=100, bulk=True))
         speakline("Query", searchString)
         speakline("  Emails Found", str(len(results)))
-        
-        FOLDERSTACK = determinefolder(selectedEmail)
-        createfolder(FOLDERSTACK, server)
-        
+               
         counting = 0
-        FULLPATH = '/'.join(FOLDERSTACK)
-        
+        FOLDERSTACK = determinefolder(selectedEmail)
+        FULLPATH = createfolder(FOLDERSTACK, server)      
         println('  Moving emails to', FULLPATH)
 
         for index, msg in enumerate(results):
@@ -156,7 +159,6 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
             try:
                 
                 server.move(msg.uid, FULLPATH)
-                
                 counting = counting + 1
 
             except Exception as e:
