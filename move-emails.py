@@ -23,7 +23,7 @@ def show_message(index, msg):
 # ---------------
 
 def rearrangefrom(frommer):
-    temp = frommer.replace('@', '.')
+    temp = frommer.replace('@', '.').lower()
     parts = temp.split('.')
     parts.reverse()
     temp = '.'.join(parts)
@@ -70,7 +70,6 @@ def spokeninputtimeout(q, default):
 
 def speakline(key, val):
     println(key, val)
-    do_log(key + ' ' + val)
     Dispatch("SAPI.SpVoice").Speak(key + ' ' + val)
 
 # ---------------
@@ -100,6 +99,7 @@ def createfolder(FOLDERSTACK, mailbox):
 # ---------------
 
 def println(key, value):
+    do_log(key + ' ' + value)
     timeX = datetime.now().strftime("%H:%M:%S ")
     print(timeX, key, ':           ', value)
 
@@ -107,7 +107,7 @@ def println(key, value):
 # ---------------
 
 configs = json.load(open('./config.json', 'r'))
-min_timeout = 3
+min_timeout = 2
 max_timeout = 120
 dynamic_timeout = max_timeout
 
@@ -200,13 +200,15 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
                     println('  Moving emails', pack)
                     pack = ''
             
-            server.move(pack.strip(','), FULLPATH)
-            println('  Moving emails', pack)
+            if pack != '':
+                server.move(pack.strip(','), FULLPATH)
+                println('  Moving emails', pack)
             
             counting = len(EMAILLIST)
             runtimecount = runtimecount + counting
             
             speakline("  Emails sent in " + yearX  + " from " + fromX , str(counting))
+
             println("Total emails sorted", str(runtimecount))
 
         except Exception as e:
