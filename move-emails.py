@@ -121,7 +121,7 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
     runtimecount = 0
     
     while True:
-        preview = list(server.fetch(limit=7))
+        preview = list(server.fetch(limit=7, bulk=True, reverse=True))
 
         print("")
         print("")
@@ -139,18 +139,33 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         
         selectedEmail = preview[int(peekEmail)]
         
-        fromX = selectedEmail.from_values
-        yearX = selectedEmail.date.strftime('%Y')
 
-        searchString = 'FROM "'+fromX.name+' '+fromX.email+'"'
+        try:
+        
+            fromX = selectedEmail.from_values
+            yearX = selectedEmail.date.strftime('%Y')
+            searchString = 'FROM "'+fromX.name+' '+fromX.email+'"'
+            
+            results = list(server.fetch(searchString, limit=500, bulk=True, reverse=True))
+            
+            println("Query", searchString)
+            speakline("  Emails from " + fromX.name, str(len(results)))
+            
+            if len(results) == 0:
+                raise Exception('No results from fetch')
+            
+        except Exception as e:
+        
+            speakline('Failed to fetch emails', str(e))
+            
+            FULLPATH = createfolder(['ERROR-FETCHING'], server)
+            server.move(selectedEmail.uid, FULLPATH)
+            continue
 
-        results = list(server.fetch(searchString, limit=500, bulk=True))
-        println("Query", searchString)
-        speakline("  Emails from " + fromX.name, str(len(results)))
+
                
         FOLDERSTACK = determinefolder(selectedEmail)
-        FULLPATH = createfolder(FOLDERSTACK, server)      
-        println('  Moving emails to', FULLPATH)
+        FULLPATH = createfolder(FOLDERSTACK, server)
         
         EMAILLIST = []
 
@@ -167,17 +182,28 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         
         try:
             
-            server.move(','.join(EMAILLIST), FULLPATH)
+            pack = ''
+            
+            for xid in EMAILLIST:
+            
+                pack = pack + xid + ','
+                
+                if pack.count(',') == 10:
+                    server.move(pack.strip(','), FULLPATH)
+                    println('  Moving emails', pack)
+                    pack = ''
+            
+            server.move(pack.strip(','), FULLPATH)
+            println('  Moving emails', pack)
+            
             counting = len(EMAILLIST)
+            runtimecount = runtimecount + counting
+            
+            speakline("  Emails sent in " + yearX  + " from " + fromX.name , str(counting))
+            println("Total emails sorted", str(runtimecount))
 
         except Exception as e:
+            speakline('Failed to move emails', str(e))
+
+
         
-            print('  Failed to move emails!')
-            print(e)
-
-
-        speakline("  Emails sent in " + yearX  + " from " + fromX.name , str(counting))
-        
-        runtimecount = runtimecount + counting
-
-        println("Total emails sorted", str(runtimecount))
