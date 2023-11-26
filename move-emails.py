@@ -31,12 +31,16 @@ def rearrangefrom(frommer):
 
 # ---------------
 
-def determinefolder(msg):
+def determinefolder(msg, count):
 
     FOLDERSTACK = ["PYTHON-SORT"]
-    FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
-    FOLDERSTACK.append(msg.from_values.name)
-    FOLDERSTACK.append(msg.date.strftime('%Y'))
+    
+    if count == 1:
+        FOLDERSTACK.append('SINGLE-EMAIL')
+    else:
+        FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
+        FOLDERSTACK.append(msg.from_values.name)
+        FOLDERSTACK.append(msg.date.strftime('%Y'))
     
     return FOLDERSTACK
 
@@ -142,14 +146,14 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
 
         try:
         
-            fromX = selectedEmail.from_values
+            fromX = selectedEmail.from_values.email
             yearX = selectedEmail.date.strftime('%Y')
-            searchString = 'FROM "'+fromX.name+' '+fromX.email+'"'
+            searchString = 'FROM "'+fromX+'"'
             
             results = list(server.fetch(searchString, limit=500, bulk=True, reverse=True))
             
             println("Query", searchString)
-            speakline("  Emails from " + fromX.name, str(len(results)))
+            speakline("  Emails from " + fromX, str(len(results)))
             
             if len(results) == 0:
                 raise Exception('No results from fetch')
@@ -164,7 +168,7 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
 
 
                
-        FOLDERSTACK = determinefolder(selectedEmail)
+        FOLDERSTACK = determinefolder(selectedEmail, len(results))
         FULLPATH = createfolder(FOLDERSTACK, server)
         
         EMAILLIST = []
@@ -172,12 +176,15 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         for index, msg in enumerate(results):
         
             thisYear = msg.date.strftime('%Y')
+            thisName = msg.from_values.name
         
-            if thisYear == yearX:
+            if thisYear != yearX:
+                print('  Email year ' + thisYear)
+            elif selectedEmail.from_values.name != thisName:
+                print('  Email from ' + thisName)
+            else:
                 show_message(index, msg)        
                 EMAILLIST.append(msg.uid)
-            else:
-                print('  Email from ' + thisYear)
                 
         
         try:
@@ -199,7 +206,7 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
             counting = len(EMAILLIST)
             runtimecount = runtimecount + counting
             
-            speakline("  Emails sent in " + yearX  + " from " + fromX.name , str(counting))
+            speakline("  Emails sent in " + yearX  + " from " + fromX , str(counting))
             println("Total emails sorted", str(runtimecount))
 
         except Exception as e:
