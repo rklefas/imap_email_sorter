@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 from win32com.client import Dispatch
 from inputimeout import inputimeout, TimeoutOccurred
+import unidecode
 
 # ---------------
 # ---------------
@@ -31,16 +32,13 @@ def rearrangefrom(frommer):
 
 # ---------------
 
-def determinefolder(msg, count):
+def determinefolder(msg):
 
     FOLDERSTACK = ["PYTHON-SORT"]
     
-    if count == 1:
-        FOLDERSTACK.append('SINGLE-EMAIL')
-    else:
-        FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
-        FOLDERSTACK.append(msg.from_values.name)
-        FOLDERSTACK.append(msg.date.strftime('%Y'))
+    FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
+    FOLDERSTACK.append(unidecode.unidecode(msg.from_values.name).strip())
+    FOLDERSTACK.append(msg.date.strftime('%Y'))
     
     return FOLDERSTACK
 
@@ -74,7 +72,7 @@ def speakline(key, val):
 
 # ---------------
 
-def createfolder(FOLDERSTACK, mailbox):
+def createfolder(FOLDERSTACK, mailbox, count = None):
 
     FULLPATH = '/'.join(FOLDERSTACK)
     pack = ''
@@ -82,7 +80,12 @@ def createfolder(FOLDERSTACK, mailbox):
     println('Check for folder', FULLPATH)
 
     if mailbox.folder.exists(FULLPATH) == False:
-        if spokeninputtimeout('  Do you want to create this folder? ', 'y').lower().strip() == 'y':
+    
+        if count == 0:
+            return createfolder(['ERROR-FETCHING'], mailbox)
+        elif count == 1:
+            return createfolder(['PYTHON-SORT', 'SINGLE-EMAIL'], mailbox)
+        elif spokeninputtimeout('  Not found.  Create this folder? ', 'y').lower().strip() == 'y':
         
             for FOLDER in FOLDERSTACK:
                 pack = pack + '/' + FOLDER
@@ -92,7 +95,7 @@ def createfolder(FOLDERSTACK, mailbox):
                     println('  Creating folder', pack)
                     mailbox.folder.create(pack)
         else:
-            return createfolder(['AUTOREVIEW'], mailbox)
+            return createfolder(['PYTHON-SORT', 'AUTOREVIEW'], mailbox)
         
     return FULLPATH
     
@@ -108,7 +111,7 @@ def println(key, value):
 
 configs = json.load(open('./config.json', 'r'))
 min_timeout = 2
-max_timeout = 120
+max_timeout = 60
 dynamic_timeout = max_timeout
 
 ############### Login to Mailbox ######################
@@ -141,6 +144,7 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         if (peekEmail == ''):
             break
         
+        EMAILLIST = []
         selectedEmail = preview[int(peekEmail)]
         
 
@@ -155,37 +159,26 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
             println("Query", searchString)
             speakline("  Emails from " + fromX, str(len(results)))
             
-            if len(results) == 0:
-                raise Exception('No results from fetch')
+            for index, msg in enumerate(results):
+            
+                thisYear = msg.date.strftime('%Y')
+                thisName = msg.from_values.name
+            
+                if thisYear != yearX:
+                    print('  Email year ' + thisYear)
+                elif selectedEmail.from_values.name != thisName:
+                    print('  Email from ' + thisName)
+                else:
+                    show_message(index, msg)        
+                    EMAILLIST.append(msg.uid)
             
         except Exception as e:
-        
             speakline('Failed to fetch emails', str(e))
-            
-            FULLPATH = createfolder(['ERROR-FETCHING'], server)
-            server.move(selectedEmail.uid, FULLPATH)
-            continue
+            EMAILLIST.append(selectedEmail.uid)
 
 
-               
-        FOLDERSTACK = determinefolder(selectedEmail, len(results))
-        FULLPATH = createfolder(FOLDERSTACK, server)
-        
-        EMAILLIST = []
-
-        for index, msg in enumerate(results):
-        
-            thisYear = msg.date.strftime('%Y')
-            thisName = msg.from_values.name
-        
-            if thisYear != yearX:
-                print('  Email year ' + thisYear)
-            elif selectedEmail.from_values.name != thisName:
-                print('  Email from ' + thisName)
-            else:
-                show_message(index, msg)        
-                EMAILLIST.append(msg.uid)
-                
+        FOLDERSTACK = determinefolder(selectedEmail)
+        FULLPATH = createfolder(FOLDERSTACK, server, len(results))                
         
         try:
             
