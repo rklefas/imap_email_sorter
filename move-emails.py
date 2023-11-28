@@ -128,24 +128,34 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
     runtimecount = 0
     
     while True:
-        preview = list(server.fetch(limit=7, bulk=True, reverse=True))
-
-        print("")
-        print("")
-        
-        for index, msg in enumerate(preview):
-            show_message(index, msg)
     
-        print("")
-        print("")
+        if dynamic_timeout == min_timeout:
         
-        peekEmail = spokeninputtimeout('Pick an email to sort. ', '0')
+            preview = list(server.fetch(limit=1, bulk=True, reverse=True))
+            selectedEmail = preview[0]
+
+        else:
+            preview = list(server.fetch(limit=7, bulk=True, reverse=True))
+
+            print("")
+            print("")
+            
+            for index, msg in enumerate(preview):
+                show_message(index, msg)
         
-        if (peekEmail == ''):
-            break
+            print("")
+            print("")
+            
+            peekEmail = spokeninputtimeout('Pick an email to sort. ', '0')
+            
+            if (peekEmail == ''):
+                break
+
+            selectedEmail = preview[int(peekEmail)]
+        
+        
         
         EMAILLIST = []
-        selectedEmail = preview[int(peekEmail)]
         
 
         try:
@@ -157,7 +167,7 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
             results = list(server.fetch(searchString, limit=500, bulk=True, reverse=True))
             
             println("Query", searchString)
-            speakline("  Emails from " + fromX, str(len(results)))
+            println("  Emails from " + fromX, str(len(results)))
             
             for index, msg in enumerate(results):
             
@@ -178,7 +188,7 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
 
 
         FOLDERSTACK = determinefolder(selectedEmail)
-        FULLPATH = createfolder(FOLDERSTACK, server, len(results))                
+        FULLPATH = createfolder(FOLDERSTACK, server, len(EMAILLIST))                
         
         try:
             
@@ -201,8 +211,7 @@ with imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
             runtimecount = runtimecount + counting
             
             speakline("  Emails sent in " + yearX  + " from " + fromX , str(counting))
-
-            println("Total emails sorted", str(runtimecount))
+            speakline("Total emails sorted", str(runtimecount))
 
         except Exception as e:
             speakline('Failed to move emails', str(e))
