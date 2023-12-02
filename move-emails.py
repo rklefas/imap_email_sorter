@@ -41,9 +41,9 @@ def determinefolder(msg):
     nameX = nameX.replace('/', '-')
     
     if nameX == '':
-        nameX = msg.date.strftime('%Y')
-    else:
-        nameX = nameX + msg.date.strftime(' %Y')
+        nameX = msg.from_values.email
+
+    nameX = nameX + msg.date.strftime(' [%Y]')
 
     FOLDERSTACK.append(nameX)
     
@@ -70,6 +70,14 @@ def spokeninputtimeout(q, default):
         Dispatch("SAPI.SpVoice").Speak('Defaulted to '+default)
         dynamic_timeout = max(min_timeout, int(dynamic_timeout / 2))
         return default
+
+# ---------------
+
+def speaknumber(key, val):
+    if val > 20:
+        speakline(key, str(val))
+    else:
+        println(key, str(val))
 
 # ---------------
 
@@ -120,12 +128,12 @@ def deletefolder(server, folder, status):
     if '/' in folder.name:
     
         altered = folder.name
-        altered = altered.replace('/2018', ' 2018')
-        altered = altered.replace('/2019', ' 2019')
-        altered = altered.replace('/2020', ' 2020')
-        altered = altered.replace('/2021', ' 2021')
-        altered = altered.replace('/2022', ' 2022')
-        altered = altered.replace('/2023', ' 2023')
+        altered = altered.replace(' 2018', ' [2018]')
+        altered = altered.replace(' 2019', ' [2019]')
+        altered = altered.replace(' 2020', ' [2020]')
+        altered = altered.replace(' 2021', ' [2021]')
+        altered = altered.replace(' 2022', ' [2022]')
+        altered = altered.replace(' 2023', ' [2023]')
         
         if folder.name != altered:
             server.folder.rename(folder.name, altered)
@@ -186,7 +194,7 @@ mode = spokeninput('Which mode? Delete / Move / Sort (D M S) ').upper()
 if mode == 'D':
 
 
-    for cycle in range(1, 3):
+    for cycle in range(1, 2):
 
         server = refresh_connection()
         
@@ -276,15 +284,15 @@ elif mode == 'S':
     
     runtimecount = 0
     
-    for cycle in range(1, 1000):
+    for cycle in range(1, 200):
     
-        if cycle % 100 == 0:
+        if cycle % 25 == 0:
             server = refresh_connection()    
     
         if dynamic_timeout == min_timeout:
         
             preview = list(server.fetch(limit=1, bulk=True, reverse=True))
-            selectedEmail = preview[0]
+            peekEmail == '0'
 
         else:
             preview = list(server.fetch(limit=7, bulk=True, reverse=True))
@@ -303,10 +311,13 @@ elif mode == 'S':
             if (peekEmail == ''):
                 break
 
-            selectedEmail = preview[int(peekEmail)]
         
         
+        if len(preview) == 0:
+            speakline('Congratulations!', 'You have achieved inbox zero.')
+            break
         
+        selectedEmail = preview[int(peekEmail)]
         EMAILLIST = []
         
 
@@ -349,8 +360,9 @@ elif mode == 'S':
             counting = len(EMAILLIST)
             runtimecount = runtimecount + counting
             
-            speakline("  Emails sent in " + yearX  + " from " + fromX , str(counting))
-            speakline("Total emails sorted", str(runtimecount))
+            speaknumber("  Emails sent in " + yearX  + " from " + fromX , counting)
+            speaknumber("Total emails sorted", runtimecount)
+
 
         except Exception as e:
             speakline('Failed to move emails', str(e))
