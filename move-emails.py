@@ -178,6 +178,28 @@ def refresh_connection():
     print(stat)
 
     return server
+    
+def mode_delete():
+
+    for cycle in range(1, 3):
+
+        server = refresh_connection()
+        
+        folders = list(server.folder.list())
+        speakline('Cycle ' + str(cycle) + ' folders to scan', str(len(folders)))
+
+        for f in folders:
+                    
+            try:
+                
+                print(f.name) 
+                stat = server.folder.status(f.name)
+                
+                deletefolder(server, f, stat)
+
+            except Exception as e:
+                speakline('Failed to stat folder for deletion', str(e))
+
 
 # ---------------
 # ---------------
@@ -193,27 +215,7 @@ mode = spokeninput('Which mode? Delete / Move / Sort (D M S) ').upper()
 
 if mode == 'D':
 
-
-    for cycle in range(1, 2):
-
-        server = refresh_connection()
-        
-        folders = list(server.folder.list())
-        speakline('Cycle ' + str(cycle) + ' folders to scan', str(len(folders)))
-
-        for f in folders:
-                    
-            try:
-                
-                print(f.name)  # FolderInfo(name='INBOX|cats', delim='|', flags=('\\Unmarked', '\\HasChildren'))
-                stat = server.folder.status(f.name)
-                
-                deletefolder(server, f, stat)
-
-            except Exception as e:
-                speakline('Failed to stat folder for deletion', str(e))
-
-        
+    mode_delete()        
             
 elif mode == 'M':
 
@@ -322,6 +324,10 @@ elif mode == 'S':
         
         if len(preview) == 0:
             speakline('Congratulations!', 'You have achieved inbox zero.')
+            
+            if spokeninputtimeout('Do you want to run delete mode? ', 'y') == 'y':
+                mode_delete()
+            
             break
         
         selectedEmail = preview[int(peekEmail)]
