@@ -256,16 +256,23 @@ elif mode == 'M':
 
             for f in folders:
                 try:
-                    println(f.name, '')
-                    server.folder.set(f.name)
+                    for cycle in range(1, 100):
                     
-                    preview = list(server.fetch(bulk=True))
-                    EMAILLIST = []
+                        println(f.name, '')
+                        server.folder.set(f.name)
+                    
+                        preview = list(server.fetch(bulk=True, limit=100))
+                        
+                        if len(preview) == 0:
+                            break
+                            
+                        EMAILLIST = []
 
-                    for index, msg in enumerate(preview):
-                        EMAILLIST.append(msg.uid)
+                        for index, msg in enumerate(preview):
+                            EMAILLIST.append(msg.uid)
 
-                    moveemails(server, destinationfolder, EMAILLIST)
+                        moveemails(server, destinationfolder, EMAILLIST)
+                        
                 
                 except Exception as e:
                     println(f.name, '')
