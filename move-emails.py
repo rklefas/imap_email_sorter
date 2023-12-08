@@ -19,7 +19,7 @@ def do_log(message):
 
 def show_message(index, msg):
     print('Email', index, ' | ', msg.from_values.name, '  ', msg.from_values.email, '  ', msg.date)
-    print('         |           ', msg.subject[0:50], msg.uid, len(msg.text or msg.html))
+    print('         |           ', msg.subject[0:50], '(', msg.uid, ')', str(int(len(msg.text or msg.html)/1024)) + 'kb')
 
 # ---------------
 
@@ -144,6 +144,9 @@ def deletefolder(server, folder, status):
             println(folder.name, 'has no folders or emails')
             println('  DELETE', folder.name)
             server.folder.delete(folder.name)
+            return 1
+            
+    return 0
     
 # ---------------
 
@@ -183,6 +186,7 @@ def mode_delete():
 
     for cycle in range(1, 3):
 
+        count = 0
         server = refresh_connection()
         
         folders = list(server.folder.list())
@@ -191,15 +195,15 @@ def mode_delete():
         for f in folders:
                     
             try:
-                
                 print(f.name) 
                 stat = server.folder.status(f.name)
                 
-                deletefolder(server, f, stat)
+                count += deletefolder(server, f, stat)
 
             except Exception as e:
                 speakline('Failed to stat folder for deletion', str(e))
 
+        speakline('Deleted folders', str(count))
 
 # ---------------
 # ---------------
@@ -268,12 +272,12 @@ elif mode == 'M':
                         if len(preview) == 0:
                             break
                             
-                        EMAILLIST = []
+                        FILTERED_UIDS = []
 
                         for index, msg in enumerate(preview):
-                            EMAILLIST.append(msg.uid)
+                            FILTERED_UIDS.append(msg.uid)
 
-                        moveemails(server, destinationfolder, EMAILLIST)
+                        moveemails(server, destinationfolder, FILTERED_UIDS)
                         
                 
                 except Exception as e:
@@ -331,7 +335,7 @@ elif mode == 'S':
             break
         
         selectedEmail = preview[int(peekEmail)]
-        EMAILLIST = []
+        FILTERED_UIDS = []
         
 
         try:
@@ -340,12 +344,12 @@ elif mode == 'S':
             yearX = selectedEmail.date.strftime('%Y')
             searchString = 'FROM "'+fromX+'"'
             
-            results = list(server.fetch(searchString, limit=500, bulk=True, reverse=True))
+            FETCHED_EMAILS = list(server.fetch(searchString, limit=500, bulk=True, reverse=True))
             
             println("Query", searchString)
-            println("  Emails from " + fromX, str(len(results)))
+            println("  Emails from " + fromX, str(len(FETCHED_EMAILS)))
             
-            for index, msg in enumerate(results):
+            for index, msg in enumerate(FETCHED_EMAILS):
             
                 thisYear = msg.date.strftime('%Y')
                 thisName = msg.from_values.name
@@ -356,21 +360,21 @@ elif mode == 'S':
                     print('  Email from ' + thisName)
                 else:
                     show_message(index, msg)        
-                    EMAILLIST.append(msg.uid)
+                    FILTERED_UIDS.append(msg.uid)
             
         except Exception as e:
             speakline('Failed to fetch emails', str(e))
-            EMAILLIST.append(selectedEmail.uid)
+            FILTERED_UIDS.append(selectedEmail.uid)
 
 
         FOLDERSTACK = determinefolder(selectedEmail)
-        FULLPATH = createfolder(FOLDERSTACK, server, len(EMAILLIST))                
+        FULLPATH = createfolder(FOLDERSTACK, server, len(FILTERED_UIDS))                
         
         try:
             
-            moveemails(server, FULLPATH, EMAILLIST)
+            moveemails(server, FULLPATH, FILTERED_UIDS)
             
-            counting = len(EMAILLIST)
+            counting = len(FILTERED_UIDS)
             runtimecount = runtimecount + counting
             
             speaknumber("  Emails sent in " + yearX  + " from " + fromX , counting)
