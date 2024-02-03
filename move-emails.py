@@ -210,9 +210,6 @@ def mode_delete():
 
 def cleanbody(vv):
 
-    print('RAW', vv)
-    
-
     vv = vv.replace('- - ', '')
     vv = vv.replace('&nbsp;', ' ')
     vv = vv.replace('&amp;', ' and ')
@@ -227,13 +224,23 @@ def cleanbody(vv):
     
     vv = re.sub("  ", " ", vv)
     vv = re.sub("http://(\S+)", "", vv)
+    
+    vv = breakfooter(vv, 'Copyright © 202')
 
     return vv
     
 
+def breakfooter(xx, breakoff):
+    return xx
+
+
 def speakitem(vv):
-    print(vv)
-    Dispatch("SAPI.SpVoice").Speak(vv)
+
+    parts = vv.split('\r\n')
+    
+    for part in parts:
+        print(part)
+        Dispatch("SAPI.SpVoice").Speak(part)
 
 
 # ---------------
@@ -257,10 +264,11 @@ if mode == 'D':
 
 elif mode == 'R':
 
+
+    folderx = 'INBOX'
+    server = refresh_connection()
     
     while True:
-        
-        server = refresh_connection()
         
         preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=1, bulk=True, reverse=True))
         
@@ -279,15 +287,25 @@ elif mode == 'R':
             
             speakitem(shrunken)
             
+            try:
+                server.folder.status(folderx)
+            except Exception as e:
+                server = refresh_connection()
+             
+            
             uids.append(msg.uid)
            
-            if spokeninput('Email end.  Do you want to delete this email? ') == 'y':
-                server.delete(uids)
-#            else:
-#                server.flag(uids, imap_tools.MailMessageFlags.SEEN, True)
 
+        after_command = spokeninput('Email end.  Press D to delete or S to save.  Q to quit. ')
+
+        if after_command == 'd' or after_command == 'dq':
+            speakline('', 'Email deleted')
+            server.delete(uids)
+            
+        if after_command == 's' or after_command == 'sq':
+            speakline('', 'Email saved')
         
-        if spokeninput('Do you want to stop? ') == 'y':
+        if after_command == 'q' or after_command == 'dq' or after_command == 'sq':
             break
 
 
