@@ -1,6 +1,7 @@
 import imap_tools
 from datetime import datetime
 import json
+import re
 from win32com.client import Dispatch
 from inputimeout import inputimeout, TimeoutOccurred
 import unidecode
@@ -205,6 +206,36 @@ def mode_delete():
 
         speakline('Deleted folders', str(count))
 
+
+
+def cleanbody(vv):
+
+    print('RAW', vv)
+    
+
+    vv = vv.replace('- - ', '')
+    vv = vv.replace('&nbsp;', ' ')
+    vv = vv.replace('&amp;', ' and ')
+    vv = vv.replace('--', '')
+    vv = vv.replace('==', '')
+    vv = vv.replace('__', '')
+    vv = vv.replace('  ', ' ')
+    vv = vv.replace('\n\n\n', '\n')
+    vv = vv.replace('\n<\n', '\n')
+    vv = vv.replace('(http', 'http')
+    vv = vv.replace('https:', 'http:')
+    
+    vv = re.sub("  ", " ", vv)
+    vv = re.sub("http://(\S+)", "", vv)
+
+    return vv
+    
+
+def speakitem(vv):
+    print(vv)
+    Dispatch("SAPI.SpVoice").Speak(vv)
+
+
 # ---------------
 # ---------------
 
@@ -213,14 +244,53 @@ max_timeout = 60
 dynamic_timeout = max_timeout
 
 
-mode = spokeninput('Which mode? Delete / Move / Sort (D M S) ').upper()
-
+println('Press S', 'To sort your inbox to subfolders.')
+println('Press M', 'To empty out select subfolders.')
+println('Press D', 'To delete empty subfolders.')
+println('Press R', 'To read emails in your inbox.')
     
+mode = spokeninput('Select a mode: ').upper()
 
 if mode == 'D':
 
     mode_delete()        
+
+elif mode == 'R':
+
+    
+    while True:
+        
+        server = refresh_connection()
+        
+        preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=1, bulk=True, reverse=True))
+        
+        uids = []
+        
+        for index, msg in enumerate(preview):
+        
+            speakitem(msg.from_values.name)
+            speakitem(msg.subject)
             
+            shrunken = cleanbody(msg.text)
+            
+            speaknumber('Before Length', len(msg.text))
+            speaknumber('After Length', len(shrunken))
+            speakline('Read Minutes', str(int(len(shrunken) / 600)))
+            
+            speakitem(shrunken)
+            
+            uids.append(msg.uid)
+           
+            if spokeninput('Email end.  Do you want to delete this email? ') == 'y':
+                server.delete(uids)
+#            else:
+#                server.flag(uids, imap_tools.MailMessageFlags.SEEN, True)
+
+        
+        if spokeninput('Do you want to stop? ') == 'y':
+            break
+
+
 elif mode == 'M':
 
     while True:
@@ -232,6 +302,10 @@ elif mode == 'M':
         go = '*' + go + '*'
         
         folders = list(server.folder.list(search_args=go))
+        
+        if len(folders) == 0:
+            continue
+        
         speakline('Folders to scan', str(len(folders)))
         
         for f in folders:
