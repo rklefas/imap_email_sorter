@@ -177,9 +177,6 @@ def refresh_connection():
     configs = json.load(open('./config.json', 'r'))
     server = imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
     speakline("Logged into mailbox", configs['host'])
-    
-    stat = server.folder.status('INBOX')
-    print(stat)
 
     return server
     
@@ -208,24 +205,43 @@ def mode_delete():
 
 
 
+def cleanreplacer(vv, find, puts):
+
+    xx = vv.replace(find, puts)
+    befores = len(vv)
+    afters = len(xx)
+
+    if (befores != afters):
+        print('Find', find)
+        print('Puts', puts)
+        print('Before Length', befores)
+        print('After Length', afters)
+
+    return xx
+    
+
 def cleanbody(vv):
 
-    vv = vv.replace('- - ', '')
-    vv = vv.replace('&nbsp;', ' ')
-    vv = vv.replace('&amp;', ' and ')
-    vv = vv.replace('--', '')
-    vv = vv.replace('==', '')
-    vv = vv.replace('__', '')
-    vv = vv.replace('  ', ' ')
-    vv = vv.replace('\n\n\n', '\n')
-    vv = vv.replace('\n<\n', '\n')
-    vv = vv.replace('(http', 'http')
-    vv = vv.replace('https:', 'http:')
+    vv = cleanreplacer(vv, '* * ', '****')
+    vv = cleanreplacer(vv, '- - ', '----')
+    vv = cleanreplacer(vv, '&nbsp;', ' ')
+    vv = cleanreplacer(vv, '&amp;', ' and ')
+    vv = cleanreplacer(vv, '==', '**')
+    vv = cleanreplacer(vv, '*=', '**')
+    vv = cleanreplacer(vv, '__', '**')
+    vv = cleanreplacer(vv, '*_', '**')
+    vv = cleanreplacer(vv, '  ', ' ')
+    vv = cleanreplacer(vv, '<', '-')
+    vv = cleanreplacer(vv, '>', '-')
+    vv = cleanreplacer(vv, '\r\n\r\n\r\n', '\r\n')
+    vv = cleanreplacer(vv, 'https:', 'http:')
     
-    vv = re.sub("  ", " ", vv)
+    vv = vv.strip()
     vv = re.sub("http://(\S+)", "", vv)
     
     vv = breakfooter(vv, 'Copyright © 202')
+    vv = breakfooter(vv, 'You are receiving this email')
+    vv = vv.strip()
 
     return vv
     
@@ -276,31 +292,32 @@ elif mode == 'R':
         
         for index, msg in enumerate(preview):
         
-            speakitem(msg.from_values.name)
-            speakitem(msg.subject)
+            speakline('From', msg.from_values.name)
+            speakline('Date', str(msg.date))
+            speakline('Subject', msg.subject)
             
             shrunken = cleanbody(msg.text)
             
-            speaknumber('Before Length', len(msg.text))
-            speaknumber('After Length', len(shrunken))
-            speakline('Read Minutes', str(int(len(shrunken) / 600)))
+            speakline('Minutes To Read', str(int(len(shrunken) / 600)))
+            speaknumber('Email Length', len(shrunken))
             
-            speakitem(shrunken)
+            if spokeninputtimeout('Do you want to read this email? ', 'y') == 'y':
             
-            try:
-                server.folder.status(folderx)
-            except Exception as e:
-                server = refresh_connection()
-             
-            
-            uids.append(msg.uid)
-           
+                speakitem(shrunken)
+                
+                try:
+                    server.folder.status(folderx)
+                except Exception as e:
+                    server = refresh_connection()
 
         after_command = spokeninput('Email end.  Press D to delete or S to save.  Q to quit. ')
 
         if after_command == 'd' or after_command == 'dq':
+            uids.append(msg.uid)
             speakline('', 'Email deleted')
-            server.delete(uids)
+            moveemails(server, 'Trash', uids)
+            uids = []
+
             
         if after_command == 's' or after_command == 'sq':
             speakline('', 'Email saved')
