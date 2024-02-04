@@ -215,6 +215,11 @@ def mode_read(server, folderx):
     while True:
         
         preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=50, bulk=True, reverse=True, mark_seen=False))
+        
+        if (len(preview) == 0):
+            speakline('', 'No unseen emails left.  Loading already seen emails.')
+            preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=50, bulk=True, reverse=True, mark_seen=False))
+            
         alllength = 0
         
         for index, msg in enumerate(preview):
@@ -226,7 +231,9 @@ def mode_read(server, folderx):
         speakline('Hours To Read', str(int(alllength / 36000)))
         speaknumber('Emails Length', alllength)
 
-        
+        if (len(preview) == 0):
+            return
+
         for index, msg in enumerate(preview):
         
             speakline('From', msg.from_values.name)
@@ -363,15 +370,17 @@ if mode == 'D':
 
 elif mode == 'R':
 
-    server = refresh_connection()
-    folders = folderselection(server)
+    while True:
+    
+        server = refresh_connection()
+        folders = folderselection(server)
 
-    for f in folders:
+        for f in folders:
 
-        stat = server.folder.status(f.name)
-        
-        if stat.get('MESSAGES') > 0:
-            mode_read(server, f.name)
+            stat = server.folder.status(f.name)
+            
+            if stat.get('MESSAGES') > 0:
+                mode_read(server, f.name)
 
 
 elif mode == 'M':
