@@ -5,6 +5,7 @@ import re
 from win32com.client import Dispatch
 from inputimeout import inputimeout, TimeoutOccurred
 import unidecode
+from bs4 import BeautifulSoup
 
 # ---------------
 # ---------------
@@ -224,7 +225,7 @@ def mode_read(server, folderx):
         
         for index, msg in enumerate(preview):
                     
-            shrunken = cleanbody(msg.text)
+            shrunken = cleanbody(msg)
             alllength += len(shrunken)
             
         speakline('Fetched Emails', str(len(preview)))
@@ -236,7 +237,7 @@ def mode_read(server, folderx):
 
         for index, msg in enumerate(preview):
             
-            shrunken = cleanbody(msg.text)
+            shrunken = cleanbody(msg)
             
             speakline('From', msg.from_values.name)
             speakline('Subject', msg.subject)
@@ -305,7 +306,9 @@ def cleanreplacer(vv, find, puts):
 
 # ---------------
 
-def cleanbody(vv):
+def cleanbody(msg):
+
+    vv = msg.text or BeautifulSoup(msg.html).body.get_text()
 
     vv = cleanreplacer(vv, '* * ', '****')
     vv = cleanreplacer(vv, '- - ', '----')
@@ -318,7 +321,8 @@ def cleanbody(vv):
     vv = cleanreplacer(vv, '  ', ' ')
     vv = cleanreplacer(vv, '<', '-')
     vv = cleanreplacer(vv, '>', '-')
-    vv = cleanreplacer(vv, '\r\n\r\n\r\n', '\r\n')
+    vv = cleanreplacer(vv, '\r\n', '\n')
+    vv = cleanreplacer(vv, '\n\n\n', '\n')
     vv = cleanreplacer(vv, 'https:', 'http:')
     
     vv = vv.strip()
@@ -339,7 +343,7 @@ def breakfooter(xx, breakoff):
 
 def speakitem(vv):
 
-    parts = vv.split('\r\n')
+    parts = vv.split('\n')
     
     for part in parts:
         print(part)
