@@ -228,24 +228,28 @@ def mode_read(server, folderx):
             alllength += len(shrunken)
             
         speakline('Fetched Emails', str(len(preview)))
-        speakline('Hours To Read', str(int(alllength / 36000)))
+        speakline('Time To Read', timetoread(alllength))
         speaknumber('Emails Length', alllength)
 
         if (len(preview) == 0):
             return
 
         for index, msg in enumerate(preview):
-        
-            speakline('From', msg.from_values.name)
-            speakline('Date', str(msg.date))
-            speakline('Subject', msg.subject)
             
             shrunken = cleanbody(msg.text)
             
-            speakline('Minutes To Read', str(int(len(shrunken) / 600)))
-            speaknumber('Email Length', len(shrunken))
+            speakline('From', msg.from_values.name)
+            speakline('Subject', msg.subject)
+            speakline('Time To Read', timetoread(len(shrunken)))
+            println('Date', str(msg.date))
+            println('Email Length', str(len(shrunken)))
             
-            if spokeninputtimeout('Do you want to read this email? ', 'y') == 'y':
+            if len(shrunken) == 0:
+                continue
+            
+            after_command = spokeninput('Press R to read.  Press T to trash or S to star.  Q to quit. ')
+
+            if after_command == 'r':
                 
                 speakitem(shrunken)
                 
@@ -256,17 +260,32 @@ def mode_read(server, folderx):
             
                 server.flag([msg.uid], imap_tools.MailMessageFlags.SEEN, True)
 
-            after_command = spokeninput('Email end.  Press D to delete or S to save.  Q to quit. ')
+                after_command = spokeninput('Email end.  Press T to trash or S to star.  Q to quit. ')
+                
 
-            if after_command == 'd' or after_command == 'dq':
+            if after_command == 't' or after_command == 'tq':
                 moveemails(server, 'Trash', [msg.uid])
                 speakline('', 'Email deleted')
 
             if after_command == 's' or after_command == 'sq':
-                speakline('', 'Email saved')
+                server.flag([msg.uid], imap_tools.MailMessageFlags.FLAGGED, True)
+                speakline('', 'Email starred')
             
             if after_command == 'q' or after_command == 'dq' or after_command == 'sq':
                 return
+
+# ---------------
+
+def timetoread(xx):
+    
+    tmp = int(xx / 600)
+    unit = ' Minutes'
+    
+    if (tmp > 59):
+        tmp = int(tmp / 60)
+        unit = ' Hours'
+
+    return str(tmp) + unit
 
 # ---------------
 
