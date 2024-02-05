@@ -53,6 +53,16 @@ def determinefolder(msg):
 
 # ---------------
 
+def input_for_mode_selection(q, default_or_prompt):
+
+    if default_or_prompt == '[ask]':
+        return spokeninput(q)
+    else:
+        return spokeninputtimeout(q, default_or_prompt)
+
+
+# ---------------
+
 def spokeninput(q):
     Dispatch("SAPI.SpVoice").Speak(q)
     return input(q)
@@ -174,10 +184,15 @@ def moveemails(server, FULLPATH, listings):
 
 # ---------------
 
-def refresh_connection():
+def refresh_connection(set_folder = None):
     configs = json.load(open('./config.json', 'r'))
     server = imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
     speakline("Logged into mailbox", configs['host'])
+    
+    if set_folder != None:
+        server.folder.set(set_folder)
+    
+    speakline('  Browsing Folder', server.folder.get())
 
     return server
 
@@ -193,22 +208,31 @@ def mode_delete():
         folders = list(server.folder.list())
         speakline('Cycle ' + str(cycle) + ' folders to scan', str(len(folders)))
 
+        FOLDERCOUNTS = []
+
         for f in folders:
                     
             try:
-                print(f.name) 
                 stat = server.folder.status(f.name)
                 
+                tmp = str(stat.get('MESSAGES')).rjust(5, '0')
+                tmp = tmp + ' - ' + f.name
+                
+                print(tmp)
+
+                FOLDERCOUNTS.append(tmp)
                 count += deletefolder(server, f, stat)
 
             except Exception as e:
                 speakline('Failed to stat folder for deletion', str(e))
 
         speakline('Deleted folders', str(count))
+        
+        print(sorted(FOLDERCOUNTS))
 
 # ---------------
 
-def mode_read(server, folderx):
+def mode_read(server, folderx, mode_selection):
 
     server.folder.set(folderx)
     speakline('Current Folder', folderx)
@@ -221,6 +245,11 @@ def mode_read(server, folderx):
             speakline('', 'No unseen emails left.  Loading already seen emails.')
             preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=50, bulk=True, reverse=True, mark_seen=False))
             
+        speakline('Fetched Emails', str(len(preview)))
+        
+        if (len(preview) == 0):
+            return
+
         alllength = 0
         
         for index, msg in enumerate(preview):
@@ -228,12 +257,9 @@ def mode_read(server, folderx):
             shrunken = cleanbody(msg)
             alllength += len(shrunken)
             
-        speakline('Fetched Emails', str(len(preview)))
         speakline('Time To Read', timetoread(alllength))
         speaknumber('Emails Length', alllength)
 
-        if (len(preview) == 0):
-            return
 
         for index, msg in enumerate(preview):
             
@@ -248,20 +274,24 @@ def mode_read(server, folderx):
             if len(shrunken) == 0:
                 continue
             
-            after_command = spokeninput('Press R to read.  Press T to trash or S to star.  Q to quit. ')
+            default_preview = 'r' if mode_selection == 'SL' else '[ask]'
+            default_finish = 't' if mode_selection == 'SL' else '[ask]'
+            
+            after_command = input_for_mode_selection('Press R to read.  Press T to trash or S to star.  Q to quit. ', default_preview)
 
             if after_command == 'r':
                 
                 speakitem(shrunken)
+
+                after_command = input_for_mode_selection('Email end.  Press T to trash or S to star.  Q to quit. ', default_finish)
                 
                 try:
                     server.folder.status(folderx)
                 except Exception as e:
-                    server = refresh_connection()
+                    server = refresh_connection(folderx)
             
                 server.flag([msg.uid], imap_tools.MailMessageFlags.SEEN, True)
 
-                after_command = spokeninput('Email end.  Press T to trash or S to star.  Q to quit. ')
                 
 
             if after_command == 't' or after_command == 'tq':
@@ -293,6 +323,9 @@ def timetoread(xx):
 def cleanreplacer(vv, find, puts):
 
     xx = vv.replace(find, puts)
+    
+    return xx
+
     befores = len(vv)
     afters = len(xx)
 
@@ -344,9 +377,10 @@ def breakfooter(xx, breakoff):
 def speakitem(vv):
 
     parts = vv.split('\n')
+    count = len(parts)
     
-    for part in parts:
-        print(part)
+    for index, part in enumerate(parts):
+        print('[', (index+1), 'of', count, '] ', part)
         Dispatch("SAPI.SpVoice").Speak(part)
 
 # ---------------
@@ -380,18 +414,19 @@ max_timeout = 60
 dynamic_timeout = max_timeout
 
 
-println('Press S', 'To sort your inbox to subfolders.')
-println('Press M', 'To empty out select subfolders.')
-println('Press D', 'To delete empty subfolders.')
-println('Press R', 'To read emails in your inbox.')
+println('Press S', 'Automatically sort emails in your inbox to subfolders.')
+println('Press M', 'Empty out select subfolders.')
+println('Press D', 'Delete empty subfolders.')
+println('Press R', 'Read emails in your inbox or other folder.')
+println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
     
-mode = spokeninput('Select a mode: ').upper()
+mode_selection = spokeninput('Select a mode: ').upper()
 
-if mode == 'D':
+if mode_selection == 'D':
 
     mode_delete()        
 
-elif mode == 'R':
+elif mode_selection == 'R' or mode_selection == 'SL':
 
     while True:
     
@@ -403,10 +438,10 @@ elif mode == 'R':
             stat = server.folder.status(f.name)
             
             if stat.get('MESSAGES') > 0:
-                mode_read(server, f.name)
+                mode_read(server, f.name, mode_selection)
 
 
-elif mode == 'M':
+elif mode_selection == 'M':
 
     while True:
     
@@ -466,7 +501,7 @@ elif mode == 'M':
 
             
 
-elif mode == 'S':
+elif mode_selection == 'S':
 
     ############### Login to Mailbox ######################
 
