@@ -188,16 +188,27 @@ def moveemails(server, FULLPATH, listings):
 # ---------------
 
 def refresh_connection(set_folder = None):
-    configs = json.load(open('./config.json', 'r'))
-    server = imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
-    speakline("Logged into mailbox", configs['host'])
+
+    global mailbox_server
+    
+    try:
+        mailbox_server.folder.status()
+    except Exception as e:
+
+#        if random.randint(0, 1) == 1:
+#            return mailbox_server
+
+        configs = json.load(open('./config.json', 'r'))
+        mailbox_server = imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
+        speakline("Logged into mailbox", configs['host'])
+
     
     if set_folder != None:
-        server.folder.set(set_folder)
+        mailbox_server.folder.set(set_folder)
     
-    speakline('  Browsing Folder', server.folder.get())
+    speakline('  Browsing Folder', mailbox_server.folder.get())
 
-    return server
+    return mailbox_server
 
 # ---------------
 
@@ -365,7 +376,7 @@ def cleanbody(msg):
     vv = vv.strip()
     vv = re.sub("http://(\S+)", "", vv)
     
-    vv = breakfooter(vv, 'Copyright © 202')
+    vv = breakfooter(vv, 'Copyright © 20')
     vv = breakfooter(vv, 'You are receiving this email')
     vv = vv.strip()
 
@@ -375,7 +386,10 @@ def cleanbody(msg):
 
 def getkeywords(texty):
 
-    kw_extractor = yake.KeywordExtractor(top=7)
+    limit = int(len(texty) / 500)
+    limit = min(limit, 30)
+
+    kw_extractor = yake.KeywordExtractor(top=limit)
     keywords = kw_extractor.extract_keywords(texty)
     phrases = []
     
@@ -408,15 +422,17 @@ def speakitem(vv):
 
 # ---------------
 
-def folderselection(server):
+def folderselection():
     go = spokeninput('Folder filter: ')
     go = '*' + go + '*'
     
+    server = refresh_connection()
     folders = list(server.folder.list(search_args=go))
+
     speakline('Folders found', str(len(folders)))
     
     if len(folders) == 0:
-        return folderselection(server)
+        return folderselection()
         
     for f in folders:
         print(f.name)
@@ -425,8 +441,10 @@ def folderselection(server):
         return folders
 
     if spokeninput('Do you want to select these folders? ') != 'y':
-        return folderselection(server)
+        return folderselection()
         
+    server = refresh_connection()
+
     return folders
 
 # ---------------
@@ -435,6 +453,7 @@ def folderselection(server):
 min_timeout = 2
 max_timeout = 60
 dynamic_timeout = max_timeout
+mailbox_server = None
 
 
 println('Press S', 'Automatically sort emails in your inbox to subfolders.')
@@ -454,7 +473,7 @@ elif mode_selection == 'R' or mode_selection == 'SL':
     while True:
     
         server = refresh_connection()
-        folders = folderselection(server)
+        folders = folderselection()
 
         for f in folders:
 
@@ -469,8 +488,7 @@ elif mode_selection == 'M':
     while True:
     
         server = refresh_connection()
-
-        folders = folderselection(server)
+        folders = folderselection()
         
         for f in folders:
             try:
