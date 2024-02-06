@@ -8,6 +8,7 @@ import textwrap
 import time
 import unidecode
 from bs4 import BeautifulSoup
+import yake
 
 # ---------------
 # ---------------
@@ -133,7 +134,7 @@ def createfolder(FOLDERSTACK, mailbox, count = None):
 def println(key, value):
     do_log(key + ' ' + value)
     timeX = datetime.now().strftime("%H:%M:%S ")
-    print(timeX, key, ':           ', value)
+    print(timeX, str(key + ':').ljust(25, " "), value)
     
 # ---------------
 
@@ -261,7 +262,7 @@ def mode_read(server, folderx, mode_selection):
             
         speakline('Time To Read', timetoread(alllength))
         speaknumber('Emails Length', alllength)
-
+        print('-----------------------')
 
         for index, msg in enumerate(preview):
             
@@ -270,6 +271,7 @@ def mode_read(server, folderx, mode_selection):
             speakline('From', msg.from_values.name)
             speakline('Subject', msg.subject)
             speakline('Time To Read', timetoread(len(shrunken)))
+            speakline('Key phrases', getkeywords(shrunken))
             println('Date', str(msg.date))
             println('Email Length', str(len(shrunken)))
             
@@ -370,6 +372,19 @@ def cleanbody(msg):
     return vv
 
 # ---------------
+
+def getkeywords(texty):
+
+    kw_extractor = yake.KeywordExtractor(top=7)
+    keywords = kw_extractor.extract_keywords(texty)
+    phrases = []
+    
+    for kw, v in keywords:
+        phrases.append(kw)
+    
+
+    return "    ".join(phrases)
+
 
 def breakfooter(xx, breakoff):
     return xx
