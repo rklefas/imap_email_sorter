@@ -4,6 +4,8 @@ import json
 import re
 from win32com.client import Dispatch
 from inputimeout import inputimeout, TimeoutOccurred
+import textwrap
+import time
 import unidecode
 from bs4 import BeautifulSoup
 
@@ -376,11 +378,17 @@ def breakfooter(xx, breakoff):
 
 def speakitem(vv):
 
+#    tmp = textwrap.wrap(vv, replace_whitespace=False, drop_whitespace=False)
     parts = vv.split('\n')
     count = len(parts)
+    start_time = time.time()
     
     for index, part in enumerate(parts):
-        print('[', (index+1), 'of', count, '] ', part)
+    
+        seconds = time.time() - start_time
+        convert = time.strftime("%M:%S", time.gmtime(seconds))
+    
+        print('(', (index+1), 'of', count, ')  [', convert, ']  ', part)
         Dispatch("SAPI.SpVoice").Speak(part)
 
 # ---------------
