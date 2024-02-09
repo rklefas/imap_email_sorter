@@ -66,9 +66,19 @@ def input_for_mode_selection(q, default_or_prompt):
 
 # ---------------
 
+def prettyinput(q):
+    print('-----------------------')
+    xx = input('<< ' + q + ' >> ')
+    print('-----------------------')
+    return xx
+
+# ---------------
+
+
+
 def spokeninput(q):
     Dispatch("SAPI.SpVoice").Speak(q)
-    return input(q)
+    return prettyinput(q)
     
 # ---------------
     
@@ -211,6 +221,90 @@ def refresh_connection(set_folder = None):
     return mailbox_server
 
 # ---------------
+
+def mode_queue(folderx):
+
+    server = refresh_connection(folderx)
+    
+    while True:
+        
+        preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=100, bulk=True, reverse=True, mark_seen=False))
+        
+        if (len(preview) == 0):
+            speakline('', 'No unseen emails left.  Loading already seen emails.')
+            preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=100, bulk=True, reverse=True, mark_seen=False))
+            
+        speakline('Fetched Emails', str(len(preview)))
+        
+        if (len(preview) == 0):
+            return
+
+        actionstack = []
+
+        for index, msg in enumerate(preview):
+            
+            shrunken = cleanbody(msg)
+            
+            print('-----------------------')
+            println('From', msg.from_values.name)
+            println('Date', str(msg.date))
+            println('Subject', msg.subject)
+            println('Time To Read', timetoread(len(shrunken)))
+            println('Key phrases', getkeywords(shrunken))
+            
+            after_command = prettyinput('Press R to read.  Press T to trash or S to star.  Q to run queue now. ')
+            
+            if after_command == 'q':
+                break
+
+            actionstack.append(after_command)
+            speakline('Emails in Queue', str(len(actionstack)))
+
+        for index, msg in enumerate(preview):
+
+            after_command = actionstack.pop(0)
+            mode_read_process(msg, after_command)
+
+
+
+
+def mode_read_process(msg, after_command):
+
+    server = refresh_connection()
+
+    if after_command == 'r':
+    
+        shrunken = cleanbody(msg)
+        
+        print('-----------------------')
+        speakline('From', msg.from_values.name)
+        speakline('Subject', msg.subject)
+        speakline('Time To Read', timetoread(len(shrunken)))
+        speakline('Key phrases', getkeywords(shrunken))
+        println('Date', str(msg.date))
+        
+        speakitem(shrunken)
+
+        after_command = spokeninput('Email end.  Press T to trash or S to star. ')
+        
+        try:
+            server.folder.status()
+        except Exception as e:
+            server = refresh_connection()
+    
+        server.flag([msg.uid], imap_tools.MailMessageFlags.SEEN, True)
+
+    if after_command == 't':
+        moveemails(server, 'Trash', [msg.uid])
+        speakline('', 'Email deleted')
+
+    if after_command == 's':
+        server.flag([msg.uid], imap_tools.MailMessageFlags.FLAGGED, True)
+        speakline('', 'Email starred')
+    
+
+
+
 
 def mode_delete():
 
@@ -461,12 +555,24 @@ println('Press M', 'Empty out select subfolders.')
 println('Press D', 'Delete empty subfolders.')
 println('Press R', 'Read emails in your inbox or other folder.')
 println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
-    
+println('Press Q', 'Fill up a player queue')
+
 mode_selection = spokeninput('Select a mode: ').upper()
 
 if mode_selection == 'D':
 
     mode_delete()        
+
+elif mode_selection == 'Q':
+
+    while True:
+    
+        server = refresh_connection()
+        folders = folderselection()
+
+        for f in folders:
+            mode_queue(f.name)
+
 
 elif mode_selection == 'R' or mode_selection == 'SL':
 
