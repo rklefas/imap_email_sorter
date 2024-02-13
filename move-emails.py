@@ -1,9 +1,11 @@
 import imap_tools
 from datetime import datetime
+import gc # Garbage Collector
 import json
 import re
 from win32com.client import Dispatch
 from inputimeout import inputimeout, TimeoutOccurred
+import random
 import textwrap
 import time
 import unidecode
@@ -175,21 +177,21 @@ def deletefolder(server, folder, status):
     
 # ---------------
 
-def moveemails(server, FULLPATH, listings):
+def moveemails(server, FULLPATH, uid_list):
 
     pack = ''
     
-    for xid in listings:
+    for uid_one in uid_list:
     
-        pack = pack + xid + ','
+        pack = pack + uid_one + ','
         
         if pack.count(',') == 10:
-            server.move(pack.strip(','), FULLPATH)
+            print(server.move(pack.strip(','), FULLPATH))
             println('  Moving emails', pack)
             pack = ''
     
     if pack != '':
-        server.move(pack.strip(','), FULLPATH)
+        print(server.move(pack.strip(','), FULLPATH))
         println('  Moving emails', pack)
 
     stat = server.folder.status(FULLPATH)
@@ -541,6 +543,104 @@ def folderselection():
 
     return folders
 
+
+def mode_sort():
+
+    ############### Login to Mailbox ######################
+
+    server = refresh_connection()
+
+    #################### List Emails #####################
+    
+    
+    runtimecount = 0
+    
+    for cycle in range(1, 200):
+    
+        if cycle % 25 == 0:
+            server = refresh_connection()    
+    
+        if dynamic_timeout == min_timeout:
+        
+            preview = list(server.fetch(limit=1, bulk=True, reverse=True))
+            peekEmail = '0'
+
+        else:
+            preview = list(server.fetch(limit=7, bulk=True, reverse=True))
+
+            print("")
+            print("")
+            
+            for index, msg in enumerate(preview):
+                show_message(index, msg)
+        
+            print("")
+            print("")
+            
+            peekEmail = spokeninputtimeout('Pick an email to sort. ', '0')
+            
+            if (peekEmail == ''):
+                break
+
+        
+        
+        if len(preview) == 0:
+            speakline('Congratulations!', 'You have achieved inbox zero.')
+            break
+        
+        selectedEmail = preview[int(peekEmail)]
+        FILTERED_UIDS = []
+        
+
+        try:
+        
+            fromX = selectedEmail.from_values.email
+            yearX = selectedEmail.date.strftime('%Y')
+            searchString = 'FROM "'+fromX+'"'
+            
+            FETCHED_EMAILS = list(server.fetch(searchString, limit=500, bulk=True, reverse=True))
+            
+            println("Query", searchString)
+            println("  Emails from " + fromX, str(len(FETCHED_EMAILS)))
+            
+            for index, msg in enumerate(FETCHED_EMAILS):
+            
+                thisYear = msg.date.strftime('%Y')
+                thisName = msg.from_values.name
+            
+                if thisYear != yearX:
+                    print('  Email year ' + thisYear)
+                elif selectedEmail.from_values.name != thisName:
+                    print('  Email from ' + thisName)
+                else:
+                    show_message(index, msg)        
+                    FILTERED_UIDS.append(msg.uid)
+            
+        except Exception as e:
+            speakline('Failed to fetch emails', str(e))
+            FILTERED_UIDS.append(selectedEmail.uid)
+
+
+        FOLDERSTACK = determinefolder(selectedEmail)
+        FULLPATH = createfolder(FOLDERSTACK, server, len(FILTERED_UIDS))                
+        
+        try:
+            
+            moveemails(server, FULLPATH, FILTERED_UIDS)
+            
+            counting = len(FILTERED_UIDS)
+            runtimecount = runtimecount + counting
+            
+            speaknumber("  Emails sent in " + yearX  + " from " + fromX , counting)
+            speaknumber("Total emails sorted", runtimecount)
+
+
+        except Exception as e:
+            speakline('Failed to move emails', str(e))
+
+
+
+
 # ---------------
 # ---------------
 
@@ -550,6 +650,7 @@ dynamic_timeout = max_timeout
 mailbox_server = None
 
 
+println('Press A', 'Run (A)ll day and keep inbox sorted')
 println('Press S', 'Automatically sort emails in your inbox to subfolders.')
 println('Press M', 'Empty out select subfolders.')
 println('Press D', 'Delete empty subfolders.')
@@ -557,17 +658,32 @@ println('Press R', 'Read emails in your inbox or other folder.')
 println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
 println('Press Q', 'Fill up a player queue')
 
+
 mode_selection = spokeninput('Select a mode: ').upper()
 
-if mode_selection == 'D':
+if mode_selection == 'A':
 
-    mode_delete()        
+    while True:
+    
+        mode_sort()
+
+        if random.randint(0, 4) == 1:
+            mode_delete()
+        
+        gc.collect()
+        print('Waiting for a while...')
+        time.sleep(60*60*4)
+
+    
+    
+elif mode_selection == 'D':
+
+    mode_delete()
 
 elif mode_selection == 'Q':
 
     while True:
     
-        server = refresh_connection()
         folders = folderselection()
 
         for f in folders:
@@ -650,101 +766,8 @@ elif mode_selection == 'M':
 
 elif mode_selection == 'S':
 
-    ############### Login to Mailbox ######################
-
-    server = refresh_connection()
-
-    #################### List Emails #####################
+    mode_sort()
     
-    
-    runtimecount = 0
-    
-    for cycle in range(1, 200):
-    
-        if cycle % 25 == 0:
-            server = refresh_connection()    
-    
-        if dynamic_timeout == min_timeout:
-        
-            preview = list(server.fetch(limit=1, bulk=True, reverse=True))
-            peekEmail == '0'
-
-        else:
-            preview = list(server.fetch(limit=7, bulk=True, reverse=True))
-
-            print("")
-            print("")
-            
-            for index, msg in enumerate(preview):
-                show_message(index, msg)
-        
-            print("")
-            print("")
-            
-            peekEmail = spokeninputtimeout('Pick an email to sort. ', '0')
-            
-            if (peekEmail == ''):
-                break
-
-        
-        
-        if len(preview) == 0:
-            speakline('Congratulations!', 'You have achieved inbox zero.')
-            
-            if spokeninputtimeout('Do you want to run delete mode? ', 'y') == 'y':
-                mode_delete()
-            
-            break
-        
-        selectedEmail = preview[int(peekEmail)]
-        FILTERED_UIDS = []
-        
-
-        try:
-        
-            fromX = selectedEmail.from_values.email
-            yearX = selectedEmail.date.strftime('%Y')
-            searchString = 'FROM "'+fromX+'"'
-            
-            FETCHED_EMAILS = list(server.fetch(searchString, limit=500, bulk=True, reverse=True))
-            
-            println("Query", searchString)
-            println("  Emails from " + fromX, str(len(FETCHED_EMAILS)))
-            
-            for index, msg in enumerate(FETCHED_EMAILS):
-            
-                thisYear = msg.date.strftime('%Y')
-                thisName = msg.from_values.name
-            
-                if thisYear != yearX:
-                    print('  Email year ' + thisYear)
-                elif selectedEmail.from_values.name != thisName:
-                    print('  Email from ' + thisName)
-                else:
-                    show_message(index, msg)        
-                    FILTERED_UIDS.append(msg.uid)
-            
-        except Exception as e:
-            speakline('Failed to fetch emails', str(e))
-            FILTERED_UIDS.append(selectedEmail.uid)
-
-
-        FOLDERSTACK = determinefolder(selectedEmail)
-        FULLPATH = createfolder(FOLDERSTACK, server, len(FILTERED_UIDS))                
-        
-        try:
-            
-            moveemails(server, FULLPATH, FILTERED_UIDS)
-            
-            counting = len(FILTERED_UIDS)
-            runtimecount = runtimecount + counting
-            
-            speaknumber("  Emails sent in " + yearX  + " from " + fromX , counting)
-            speaknumber("Total emails sorted", runtimecount)
-
-
-        except Exception as e:
-            speakline('Failed to move emails', str(e))
 
 
         
