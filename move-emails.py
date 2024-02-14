@@ -30,6 +30,33 @@ def show_message(index, msg):
 
 # ---------------
 
+def summarizer(msg):
+
+    print('-------------------------')
+    println('From', msg.from_values.name)
+    println('Date', str(msg.date))
+    println('Subject', msg.subject)
+    println('Flags', msg.flags)
+    
+    if len(msg.text):
+        bodytype = 'text'
+        raw = msg.text
+    else:
+        bodytype = 'html'
+        BeautifulSoup(msg.html).body.get_text()
+        
+    shrunken = cleanbody(msg)
+
+    print('--------- BODY ----------')
+    println('Body Type', bodytype)
+    println('Time To Read', timetoread(len(shrunken)))
+    println('Link Count', bodylinks(raw))
+    println('Readability', readability(raw, shrunken))
+    println('Shrunken Length', len(shrunken))
+    println('Key phrases', getkeywords(shrunken))
+
+# ---------------
+
 def rearrangefrom(frommer):
     temp = frommer.replace('@', '.').lower()
     parts = temp.split('.')
@@ -144,7 +171,7 @@ def createfolder(FOLDERSTACK, mailbox, count = None):
 # ---------------
 
 def println(key, value):
-    do_log(key + ' ' + value)
+    do_log(key + ' ' + str(value))
     timeX = datetime.now().strftime("%H:%M:%S ")
     print(timeX, str(key + ':').ljust(25, " "), value)
     
@@ -212,13 +239,13 @@ def refresh_connection(set_folder = None):
 
         configs = json.load(open('./config.json', 'r'))
         mailbox_server = imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
-        speakline("Logged into mailbox", configs['host'])
+        println("Logged into mailbox", configs['host'])
 
     
     if set_folder != None:
         mailbox_server.folder.set(set_folder)
+        println('  Browsing Folder', mailbox_server.folder.get())
     
-    speakline('  Browsing Folder', mailbox_server.folder.get())
 
     return mailbox_server
 
@@ -245,14 +272,7 @@ def mode_queue(folderx):
 
         for index, msg in enumerate(preview):
             
-            shrunken = cleanbody(msg)
-            
-            print('-----------------------')
-            println('From', msg.from_values.name)
-            println('Date', str(msg.date))
-            println('Subject', msg.subject)
-            println('Time To Read', timetoread(len(shrunken)))
-            println('Key phrases', getkeywords(shrunken))
+            summarizer(msg)
             
             after_command = prettyinput('Press R to read.  Press T to trash or S to star.  Q to run queue now. ')
             
@@ -276,14 +296,9 @@ def mode_read_process(msg, after_command):
 
     if after_command == 'r':
     
-        shrunken = cleanbody(msg)
+        summarizer(msg)
         
-        print('-----------------------')
-        speakline('From', msg.from_values.name)
-        speakline('Subject', msg.subject)
-        speakline('Time To Read', timetoread(len(shrunken)))
-        speakline('Key phrases', getkeywords(shrunken))
-        println('Date', str(msg.date))
+        shrunken = cleanbody(msg)
         
         speakitem(shrunken)
 
@@ -373,14 +388,7 @@ def mode_read(server, folderx, mode_selection):
 
         for index, msg in enumerate(preview):
             
-            shrunken = cleanbody(msg)
-            
-            speakline('From', msg.from_values.name)
-            speakline('Subject', msg.subject)
-            speakline('Time To Read', timetoread(len(shrunken)))
-            speakline('Key phrases', getkeywords(shrunken))
-            println('Date', str(msg.date))
-            println('Email Length', str(len(shrunken)))
+            summarizer(msg)
             
             if len(shrunken) == 0:
                 continue
@@ -450,6 +458,11 @@ def cleanreplacer(vv, find, puts):
 
 # ---------------
 
+def readability(raw, cleaned):
+    return str(int((len(cleaned) / len(raw)) * 100)) + '%'
+
+# ---------------
+
 def cleanbody(msg):
 
     vv = msg.text or BeautifulSoup(msg.html).body.get_text()
@@ -477,6 +490,14 @@ def cleanbody(msg):
     vv = vv.strip()
 
     return vv
+    
+# ---------------
+
+def bodylinks(raw):
+
+    xx = raw.count("http://") + raw.count("https://") 
+    
+    return xx
 
 # ---------------
 
@@ -542,7 +563,30 @@ def folderselection():
     server = refresh_connection()
 
     return folders
+    
+# ---------------
 
+def folderchildren(folderx):
+
+    server = refresh_connection()
+    
+    go = folderx + '/*'
+    
+    folders = list(server.folder.list(search_args=go))
+
+    return folders
+
+# ---------------
+
+def folderparent(folderx):
+
+    folderstack = folderx.split('/')
+    folderstack.pop()
+
+    return "/".join(folderstack)
+
+
+# ---------------
 
 def mode_sort():
 
