@@ -58,8 +58,8 @@ def summarizer(msg):
 # ---------------
 
 def rearrangefrom(frommer):
-    temp = frommer.replace('@', '.').lower()
-    parts = temp.split('.')
+    temp = frommer.split('@')
+    parts = temp[1].lower().split('.')
     parts.reverse()
     temp = '.'.join(parts)
     return temp
@@ -71,13 +71,15 @@ def determinefolder(msg):
     FOLDERSTACK = ["PYTHON-SORT"]
     FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
     
-    nameX = unidecode.unidecode(msg.from_values.name).strip().replace('  ', ' ')
+    acc = msg.from_values.email.split('@')
+    
+    nameX = msg.date.strftime('%Y')
+    nameX = nameX + ' '+ acc[0] + ' '
+    nameX = nameX + '(' + unidecode.unidecode(msg.from_values.name).strip().replace('  ', ' ') + ')'
     nameX = nameX.replace('/', '-')
     
     if nameX == '':
         nameX = msg.from_values.email
-
-    nameX = nameX + msg.date.strftime(' [%Y]')
 
     FOLDERSTACK.append(nameX)
     
@@ -92,7 +94,6 @@ def input_for_mode_selection(q, default_or_prompt):
     else:
         return spokeninputtimeout(q, default_or_prompt)
 
-
 # ---------------
 
 def prettyinput(q):
@@ -102,8 +103,6 @@ def prettyinput(q):
     return xx
 
 # ---------------
-
-
 
 def spokeninput(q):
     Dispatch("SAPI.SpVoice").Speak(q)
@@ -137,11 +136,14 @@ def speaknumber(key, val):
 
 def speakline(key, val):
     println(key, val)
-    Dispatch("SAPI.SpVoice").Speak(key + ' ' + val)
+#    Dispatch("SAPI.SpVoice").Speak(key + ' ' + val)
 
 # ---------------
 
-def createfolder(FOLDERSTACK, mailbox, count = None):
+def createfolder(FOLDERSTACK, count = None):
+
+    mailbox = refresh_connection()
+
 
     FULLPATH = '/'.join(FOLDERSTACK)
     pack = ''
@@ -150,10 +152,13 @@ def createfolder(FOLDERSTACK, mailbox, count = None):
 
     if mailbox.folder.exists(FULLPATH) == False:
     
-        if count == 0:
-            return createfolder(['ERROR-FETCHING'], mailbox)
+        if mailbox.folder.exists(folderparent(FULLPATH)) == True:
+            println('  Domain parent folder found, creating child folder', FULLPATH)
+            mailbox.folder.create(FULLPATH)
+        elif count == 0:
+            return createfolder(['ERROR-FETCHING'])
         elif count == 1:
-            return createfolder(['PYTHON-SORT', 'SINGLE-EMAIL'], mailbox)
+            return createfolder(['PYTHON-SORT', 'SINGLE-EMAIL'])
         elif spokeninputtimeout('  Not found.  Create this folder? ', 'y').lower().strip() == 'y':
         
             for FOLDER in FOLDERSTACK:
@@ -164,7 +169,7 @@ def createfolder(FOLDERSTACK, mailbox, count = None):
                     println('  Creating folder', pack)
                     mailbox.folder.create(pack)
         else:
-            return createfolder(['PYTHON-SORT', 'AUTOREVIEW'], mailbox)
+            return createfolder(['PYTHON-SORT', 'AUTOREVIEW'])
         
     return FULLPATH
     
@@ -177,22 +182,28 @@ def println(key, value):
     
 # ---------------
 
-def deletefolder(server, folder, status):
+def deletefolder(server, folder):
 
-    if '/' in folder.name:
+    if 'PYTHON' in folder.name:
     
         altered = folder.name
-        altered = altered.replace(' 2018', ' [2018]')
-        altered = altered.replace(' 2019', ' [2019]')
-        altered = altered.replace(' 2020', ' [2020]')
-        altered = altered.replace(' 2021', ' [2021]')
-        altered = altered.replace(' 2022', ' [2022]')
-        altered = altered.replace(' 2023', ' [2023]')
         
-        if folder.name != altered:
-            server.folder.rename(folder.name, altered)
-            println('Folder renamed', altered)
-            return
+                
+        if folderdepth(altered) == 3:
+        
+            fparnet = folderparent(altered)
+        
+            if server.folder.exists(fparnet) == False:
+                println('Parent missing', fparnet)
+                createfolder(fparnet.split('/'))
+                return 0
+
+
+    
+    if '/' in folder.name:
+    
+        status = server.folder.status(folder.name)
+
     
         if '\\HasNoChildren' in folder.flags and status.get('MESSAGES') == 0:
             println(folder.name, 'has no folders or emails')
@@ -287,8 +298,7 @@ def mode_queue(folderx):
             after_command = actionstack.pop(0)
             mode_read_process(msg, after_command)
 
-
-
+# ---------------
 
 def mode_read_process(msg, after_command):
 
@@ -318,10 +328,8 @@ def mode_read_process(msg, after_command):
     if after_command == 's':
         server.flag([msg.uid], imap_tools.MailMessageFlags.FLAGGED, True)
         speakline('', 'Email starred')
-    
 
-
-
+# ---------------
 
 def mode_delete():
 
@@ -330,12 +338,24 @@ def mode_delete():
         count = 0
         server = refresh_connection()
         
-        folders = list(server.folder.list())
+        folders = folderselection()
         speakline('Cycle ' + str(cycle) + ' folders to scan', str(len(folders)))
 
         FOLDERCOUNTS = []
+        uniqueDomains = 0
+        
+        for f in folders:
+            if folderdepth(f.name) == 2:
+                uniqueDomains += 1
+        
+        speakline('  Unique Domains', uniqueDomains)
+
 
         for f in folders:
+        
+            if folderdepth(f.name) == 2:
+                uniqueDomains -= 1
+                println('  Domains left', uniqueDomains)
                     
             try:
                 stat = server.folder.status(f.name)
@@ -346,10 +366,11 @@ def mode_delete():
                 print(tmp)
 
                 FOLDERCOUNTS.append(tmp)
-                count += deletefolder(server, f, stat)
+                count += deletefolder(server, f)
 
             except Exception as e:
-                speakline('Failed to stat folder for deletion', str(e))
+                println('Failed to stat folder for deletion', str(e))
+
 
         speakline('Deleted folders', str(count))
         
@@ -516,6 +537,7 @@ def getkeywords(texty):
 
     return "    ".join(phrases)
 
+# ---------------
 
 def breakfooter(xx, breakoff):
     return xx
@@ -567,24 +589,33 @@ def folderselection():
 # ---------------
 
 def folderchildren(folderx):
-
     server = refresh_connection()
-    
-    go = folderx + '/*'
-    
-    folders = list(server.folder.list(search_args=go))
+    folders = list(server.folder.list(search_args=folderx + '/*'))
 
     return folders
 
 # ---------------
 
 def folderparent(folderx):
-
     folderstack = folderx.split('/')
     folderstack.pop()
-
+    
     return "/".join(folderstack)
 
+# ---------------
+
+def folderdepth(folderx):
+    folderstack = folderx.split('/')
+    
+    return len(folderstack)
+
+# ---------------
+
+def folder_rename(oldname, newname):
+    server = refresh_connection()
+    server.folder.rename(oldname, newname)
+    println('Folder Name', oldname)
+    println('  Rename To', newname)
 
 # ---------------
 
@@ -602,7 +633,7 @@ def mode_sort():
     for cycle in range(1, 200):
     
         if cycle % 25 == 0:
-            server = refresh_connection()    
+            server = refresh_connection()
     
         if dynamic_timeout == min_timeout:
         
@@ -666,7 +697,7 @@ def mode_sort():
 
 
         FOLDERSTACK = determinefolder(selectedEmail)
-        FULLPATH = createfolder(FOLDERSTACK, server, len(FILTERED_UIDS))                
+        FULLPATH = createfolder(FOLDERSTACK, len(FILTERED_UIDS))                
         
         try:
             
@@ -764,7 +795,7 @@ elif mode_selection == 'M':
                 if '\\HasNoChildren' in f.flags and stat.get('MESSAGES') > 0:
                     println(f.name, 'has no children folders and ' + str(stat.get('MESSAGES')) + ' emails')
                 elif '\\HasNoChildren' in f.flags and stat.get('MESSAGES') == 0:
-                    deletefolder(server, f, stat)
+                    deletefolder(server, f)
                 else:
                     println(f.name, '')
                     
@@ -775,7 +806,6 @@ elif mode_selection == 'M':
                     
         if spokeninput('Empty all of these folders? ') == 'y':
         
-            folders = list(server.folder.list(search_args=go))
             destinationfolder = spokeninput('Which folder to put in? ')
             
             stat = server.folder.status(destinationfolder)
@@ -792,6 +822,7 @@ elif mode_selection == 'M':
                         preview = list(server.fetch(bulk=True, limit=100))
                         
                         if len(preview) == 0:
+                            deletefolder(server, f)
                             break
                             
                         FILTERED_UIDS = []
