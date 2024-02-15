@@ -68,9 +68,23 @@ def rearrangefrom(frommer):
 
 def determinefolder(msg):
 
-    FOLDERSTACK = ["PYTHON-SORT"]
-    FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
+    mailbox = refresh_connection()
     
+    foundPriority = 'PYTHON-SORT'
+    
+    for baseFolder in ['PRIORITY-A', 'PRIORITY-B', 'PRIORITY-C', 'PRIORITY-F', 'PYTHON-SORT']:
+
+        TMPSTACK = [baseFolder]
+        TMPSTACK.append(rearrangefrom(msg.from_values.email))
+        
+        if mailbox.folder.exists('/'.join(TMPSTACK)) == True:
+            foundPriority = baseFolder
+            break
+            
+            
+    FOLDERSTACK = [foundPriority]
+    FOLDERSTACK.append(rearrangefrom(msg.from_values.email))
+
     acc = msg.from_values.email.split('@')
     
     nameX = msg.date.strftime('%Y')
@@ -267,11 +281,12 @@ def mode_prioritize(folderx):
    
     if folderdepth(folderx) == 2:
     
-        println('Checking folder', folderx)
+        print('-----------------------')
+        println('Prioritize folder', folderx)
         
-        pri = spokeninput('What priority? (A B C X ?) ').upper().strip()
+        pri = prettyinput('What priority? (A B C F ?) ').upper().strip()
         
-        if pri == 'A' or pri == 'B' or pri == 'C' or pri == 'X':
+        if pri == 'A' or pri == 'B' or pri == 'C' or pri == 'F':
             topfolder = 'PRIORITY-' + pri
         else:
             return
