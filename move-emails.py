@@ -148,8 +148,6 @@ def createfolder(FOLDERSTACK, count = None):
     FULLPATH = '/'.join(FOLDERSTACK)
     pack = ''
 
-    println('Check for folder', FULLPATH)
-
     if mailbox.folder.exists(FULLPATH) == False:
     
         if mailbox.folder.exists(folderparent(FULLPATH)) == True:
@@ -171,6 +169,8 @@ def createfolder(FOLDERSTACK, count = None):
         else:
             return createfolder(['PYTHON-SORT', 'AUTOREVIEW'])
         
+    println('Check for creation', FULLPATH)
+    
     return FULLPATH
     
 # ---------------
@@ -261,6 +261,34 @@ def refresh_connection(set_folder = None):
     return mailbox_server
 
 # ---------------
+
+def mode_prioritize(folderx):
+
+   
+    if folderdepth(folderx) == 2:
+    
+        println('Checking folder', folderx)
+        
+        pri = spokeninput('What priority? (A B C X ?) ').upper().strip()
+        
+        if pri == 'A' or pri == 'B' or pri == 'C' or pri == 'X':
+            topfolder = 'PRIORITY-' + pri
+        else:
+            return
+         
+        createfolder([topfolder])
+
+        folderparts = folderx.split('/')
+        folderparts.reverse()
+        folderparts.pop()
+        folderparts.append(topfolder)
+        folderparts.reverse()
+        
+        newfolder = '/'.join(folderparts)
+        
+        folder_rename(folderx, newfolder)
+        
+
 
 def mode_queue(folderx):
 
@@ -568,7 +596,7 @@ def folderselection():
     server = refresh_connection()
     folders = list(server.folder.list(search_args=go))
 
-    speakline('Folders found', str(len(folders)))
+    println('Folders found', len(folders))
     
     if len(folders) == 0:
         return folderselection()
@@ -578,6 +606,8 @@ def folderselection():
 
     if len(folders) == 1:
         return folders
+        
+    println('Folders found', len(folders))
 
     if spokeninput('Do you want to select these folders? ') != 'y':
         return folderselection()
@@ -613,9 +643,15 @@ def folderdepth(folderx):
 
 def folder_rename(oldname, newname):
     server = refresh_connection()
-    server.folder.rename(oldname, newname)
+
     println('Folder Name', oldname)
     println('  Rename To', newname)
+    
+    if server.folder.exists(folderparent(newname)) == False:
+        println('  Error', 'Parent does not exist')
+        return
+        
+    server.folder.rename(oldname, newname)
 
 # ---------------
 
@@ -728,7 +764,8 @@ mailbox_server = None
 println('Press A', 'Run (A)ll day and keep inbox sorted')
 println('Press S', 'Automatically sort emails in your inbox to subfolders.')
 println('Press M', 'Empty out select subfolders.')
-println('Press D', 'Delete empty subfolders.')
+println('Press C', 'Cleanup mailbox.  Delete empty subfolders.')
+println('Press P', 'Prioritize senders')
 println('Press R', 'Read emails in your inbox or other folder.')
 println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
 println('Press Q', 'Fill up a player queue')
@@ -751,7 +788,7 @@ if mode_selection == 'A':
 
     
     
-elif mode_selection == 'D':
+elif mode_selection == 'C':
 
     mode_delete()
 
@@ -763,6 +800,17 @@ elif mode_selection == 'Q':
 
         for f in folders:
             mode_queue(f.name)
+
+
+
+elif mode_selection == 'P':
+
+    while True:
+    
+        folders = folderselection()
+
+        for f in folders:
+            mode_prioritize(f.name)
 
 
 elif mode_selection == 'R' or mode_selection == 'SL':
