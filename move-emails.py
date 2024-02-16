@@ -196,32 +196,43 @@ def println(key, value):
     
 # ---------------
 
+def dropfolder(fname):
+
+    println('Trying to drop folder', fname)
+
+    server = refresh_connection()
+    folders = list(server.folder.list(search_args=fname))
+    
+    for f in folders:
+        deletefolder(server, f)
+    
+# ---------------
+
 def deletefolder(server, folder):
 
+    # DO NOT DELETE DOMAIN FOLDERS THAT ARE PRIORITIZED
+    if 'PRIORITY-' in folder.name:
+        if folderdepth(folder.name) == 2:
+            return 0
+            
+
     if 'PYTHON' in folder.name:
-    
-        altered = folder.name
-        
                 
-        if folderdepth(altered) == 3:
+        if folderdepth(folder.name) == 3:
         
-            fparnet = folderparent(altered)
+            fparent = folderparent(folder.name)
         
-            if server.folder.exists(fparnet) == False:
-                println('Parent missing', fparnet)
-                createfolder(fparnet.split('/'))
+            if server.folder.exists(fparent) == False:
+                println('Parent missing', fparent)
+                createfolder(fparent.split('/'))
                 return 0
 
-
-    
-    if '/' in folder.name:
+    if folderdepth(folder.name) > 1:
     
         status = server.folder.status(folder.name)
 
-    
         if '\\HasNoChildren' in folder.flags and status.get('MESSAGES') == 0:
-            println(folder.name, 'has no folders or emails')
-            println('  DELETE', folder.name)
+            println('  DELETING EMPTY FOLDER', folder.name)
             server.folder.delete(folder.name)
             return 1
             
@@ -320,6 +331,7 @@ def mode_queue(folderx):
         speakline('Fetched Emails', str(len(preview)))
         
         if (len(preview) == 0):
+            dropfolder(folderx)
             return
 
         actionstack = []
@@ -437,6 +449,7 @@ def mode_read(server, folderx, mode_selection):
         speakline('Fetched Emails', str(len(preview)))
         
         if (len(preview) == 0):
+            dropfolder(folderx)
             return
 
         alllength = 0
@@ -838,10 +851,7 @@ elif mode_selection == 'R' or mode_selection == 'SL':
 
         for f in folders:
 
-            stat = server.folder.status(f.name)
-            
-            if stat.get('MESSAGES') > 0:
-                mode_read(server, f.name, mode_selection)
+            mode_read(server, f.name, mode_selection)
 
 
 elif mode_selection == 'M':
@@ -870,6 +880,8 @@ elif mode_selection == 'M':
                     
         if spokeninput('Empty all of these folders? ') == 'y':
         
+            println('Option', 'INBOX')
+            println('Option', 'Trash')
             destinationfolder = spokeninput('Which folder to put in? ')
             
             stat = server.folder.status(destinationfolder)
