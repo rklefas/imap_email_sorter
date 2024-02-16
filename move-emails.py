@@ -433,9 +433,9 @@ def mode_delete():
 
 # ---------------
 
-def mode_read(server, folderx, mode_selection):
+def mode_read(folderx, mode_selection):
 
-    server.folder.set(folderx)
+    server = refresh_connection(folderx)
     speakline('Current Folder', folderx)
     
     while True:
@@ -597,7 +597,13 @@ def getkeywords(texty):
 # ---------------
 
 def breakfooter(xx, breakoff):
-    return xx
+
+    position = xx.find(breakoff)
+    
+    if position > 50:
+        xx = xx[0:position]
+
+    return xx.strip()
 
 # ---------------
 
@@ -846,12 +852,11 @@ elif mode_selection == 'R' or mode_selection == 'SL':
 
     while True:
     
-        server = refresh_connection()
         folders = folderselection()
 
         for f in folders:
 
-            mode_read(server, f.name, mode_selection)
+            mode_read(f.name, mode_selection)
 
 
 elif mode_selection == 'M':
