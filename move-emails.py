@@ -43,7 +43,7 @@ def summarizer(msg):
         raw = msg.text
     else:
         bodytype = 'html'
-        BeautifulSoup(msg.html).body.get_text()
+        raw = BeautifulSoup(msg.html).body.get_text()
         
     shrunken = cleanbody(msg)
 
@@ -453,6 +453,7 @@ def mode_read(server, folderx, mode_selection):
         for index, msg in enumerate(preview):
             
             summarizer(msg)
+            shrunken = cleanbody(msg)
             
             if len(shrunken) == 0:
                 continue
