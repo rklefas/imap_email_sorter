@@ -38,12 +38,12 @@ def summarizer(msg):
     println('Subject', msg.subject)
     println('Flags', msg.flags)
     
-    if len(msg.text):
-        bodytype = 'text'
-        raw = msg.text
-    else:
+    if len(msg.html):
         bodytype = 'html'
         raw = BeautifulSoup(msg.html).body.get_text()
+    else:
+        bodytype = 'text'
+        raw = msg.text
         
     shrunken = cleanbody(msg)
 
@@ -325,8 +325,8 @@ def mode_queue(folderx):
         preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=100, bulk=True, reverse=True, mark_seen=False))
         
         if (len(preview) == 0):
-            speakline('', 'No unseen emails left.  Loading already seen emails.')
-            preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=100, bulk=True, reverse=True, mark_seen=False))
+            if spokeninput('Do you want to look for already seen emails? ') == 'y':
+                preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=100, bulk=True, reverse=True, mark_seen=False))
             
         speakline('Fetched Emails', str(len(preview)))
         
@@ -381,7 +381,7 @@ def mode_read_process(msg, after_command):
         speakline('', 'Email deleted')
 
     if after_command == 's':
-        server.flag([msg.uid], imap_tools.MailMessageFlags.FLAGGED, True)
+        moveemails(server, 'Review Later', [msg.uid])
         speakline('', 'Email starred')
 
 # ---------------
@@ -443,8 +443,8 @@ def mode_read(folderx, mode_selection):
         preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=50, bulk=True, reverse=True, mark_seen=False))
         
         if (len(preview) == 0):
-            speakline('', 'No unseen emails left.  Loading already seen emails.')
-            preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=50, bulk=True, reverse=True, mark_seen=False))
+            if spokeninput('Do you want to look for already seen emails? ') == 'y':
+                preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=100, bulk=True, reverse=True, mark_seen=False))
             
         speakline('Fetched Emails', str(len(preview)))
         
@@ -496,11 +496,11 @@ def mode_read(folderx, mode_selection):
                 speakline('', 'Email deleted')
 
             if after_command == 's' or after_command == 'sq':
-                server.flag([msg.uid], imap_tools.MailMessageFlags.FLAGGED, True)
+                moveemails(server, 'Review Later', [msg.uid])
                 speakline('', 'Email starred')
             
             if after_command == 'q' or after_command == 'dq' or after_command == 'sq':
-                return
+                return 'q'
 
 # ---------------
 
@@ -543,7 +543,12 @@ def readability(raw, cleaned):
 
 def cleanbody(msg):
 
-    vv = msg.text or BeautifulSoup(msg.html).body.get_text()
+    if len(msg.html):
+        bodytype = 'html'
+        vv = BeautifulSoup(msg.html).body.get_text()
+    else:
+        bodytype = 'text'
+        vv = msg.text
 
     vv = cleanreplacer(vv, '* * ', '****')
     vv = cleanreplacer(vv, '- - ', '----')
@@ -565,6 +570,7 @@ def cleanbody(msg):
     
     vv = breakfooter(vv, 'Copyright © 20')
     vv = breakfooter(vv, 'You are receiving this email')
+    vv = breakfooter(vv, 'If you no longer wish to receive our emails')
     vv = vv.strip()
 
     return vv
@@ -856,7 +862,8 @@ elif mode_selection == 'R' or mode_selection == 'SL':
 
         for f in folders:
 
-            mode_read(f.name, mode_selection)
+            if mode_read(f.name, mode_selection) == 'q':
+                break
 
 
 elif mode_selection == 'M':
