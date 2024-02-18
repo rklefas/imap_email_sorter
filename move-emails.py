@@ -5,6 +5,7 @@ import json
 import re
 from win32com.client import Dispatch
 from inputimeout import inputimeout, TimeoutOccurred
+import os
 import random
 import textwrap
 import time
@@ -13,6 +14,13 @@ from bs4 import BeautifulSoup
 import yake
 
 # ---------------
+# ---------------
+
+def screen_clear():
+    print('')
+    print('Switching to new screen...')
+    os.system('cls')
+
 # ---------------
 
 def do_log(message):
@@ -32,6 +40,8 @@ def show_message(index, msg):
 
 def summarizer(msg):
 
+    screen_clear()
+    
     print('-------------------------')
     println('From', msg.from_values.name)
     println('Date', str(msg.date))
@@ -39,21 +49,26 @@ def summarizer(msg):
     println('Flags', msg.flags)
     
     if len(msg.html):
-        bodytype = 'html'
         raw = BeautifulSoup(msg.html).body.get_text()
-    else:
-        bodytype = 'text'
-        raw = msg.text
-        
-    shrunken = cleanbody(msg)
+        bodysummary('html', raw)
 
-    print('--------- BODY ----------')
-    println('Body Type', bodytype)
-    println('Time To Read', timetoread(len(shrunken)))
-    println('Link Count', bodylinks(raw))
-    println('Readability', readability(raw, shrunken))
+    if len(msg.text):
+        raw = msg.text
+        bodysummary('text', raw)
+
+# ---------------
+
+def bodysummary(bodytype, raw):
+
+    shrunken = cleantext(raw)
+
+    print('---------', bodytype.upper(), 'BODY ----------')
+    println('Raw Length', len(raw))
+    println('  Link Count', bodylinks(raw))
+    println('  Readability %', readability(raw, shrunken))
     println('Shrunken Length', len(shrunken))
-    println('Key phrases', getkeywords(shrunken))
+    println('  Time To Read', timetoread(len(shrunken)))
+    println('  Key phrases', getkeywords(shrunken))
 
 # ---------------
 
@@ -111,6 +126,7 @@ def input_for_mode_selection(q, default_or_prompt):
 # ---------------
 
 def prettyinput(q):
+    print('')
     print('-----------------------')
     xx = input('<< ' + q + ' >> ')
     print('-----------------------')
@@ -237,7 +253,22 @@ def deletefolder(server, folder):
             return 1
             
     return 0
+
+# ---------------
+
+def reliable_move(FULLPATH, x_uid):
+
+    server = refresh_connection()
     
+    if server.folder.exists(FULLPATH) == False:
+        FOLDERSTACK = FULLPATH.split('/')
+        createfolder(FOLDERSTACK)
+
+    print('-----------------------')
+    println('Move to Folder', FULLPATH)
+    
+    moveemails(server, FULLPATH, [x_uid])
+
 # ---------------
 
 def moveemails(server, FULLPATH, uid_list):
@@ -362,8 +393,11 @@ def mode_read_process(msg, after_command):
     if after_command == 'r':
     
         summarizer(msg)
-        
         shrunken = cleanbody(msg)
+
+        if len(shrunken) == 0:
+            reliable_move(folderx + '/Unreadable', msg.uid)
+            return
         
         speakitem(shrunken)
 
@@ -469,6 +503,7 @@ def mode_read(folderx, mode_selection):
             shrunken = cleanbody(msg)
             
             if len(shrunken) == 0:
+                reliable_move(folderx + '/Unreadable', msg.uid)
                 continue
             
             default_preview = 'r' if mode_selection == 'SL' else '[ask]'
@@ -506,7 +541,7 @@ def mode_read(folderx, mode_selection):
 
 def timetoread(xx):
     
-    tmp = int(xx / 600)
+    tmp = max(int(xx / 600), 1)
     unit = ' Minutes'
     
     if (tmp > 59):
@@ -537,7 +572,7 @@ def cleanreplacer(vv, find, puts):
 # ---------------
 
 def readability(raw, cleaned):
-    return str(int((len(cleaned) / len(raw)) * 100)) + '%'
+    return int((len(cleaned) / len(raw)) * 100)
 
 # ---------------
 
@@ -545,10 +580,25 @@ def cleanbody(msg):
 
     if len(msg.html):
         bodytype = 'html'
-        vv = BeautifulSoup(msg.html).body.get_text()
+        raw = BeautifulSoup(msg.html).body.get_text()
+        cleaned = cleantext(raw)
+        
+        if len(cleaned) < 2000:
+            return ''
+
     else:
         bodytype = 'text'
-        vv = msg.text
+        raw = msg.text
+        cleaned = cleantext(raw)
+        
+        if readability(raw, cleaned) < 60:
+            return ''
+    
+    return bodytype + ' body\n\n' + cleaned
+
+# ---------------
+
+def cleantext(vv):
 
     vv = cleanreplacer(vv, '* * ', '****')
     vv = cleanreplacer(vv, '- - ', '----')
@@ -589,6 +639,7 @@ def getkeywords(texty):
 
     limit = int(len(texty) / 500)
     limit = min(limit, 30)
+    limit = max(limit, 3)
 
     kw_extractor = yake.KeywordExtractor(top=limit)
     keywords = kw_extractor.extract_keywords(texty)
@@ -796,7 +847,7 @@ def mode_sort():
 # ---------------
 # ---------------
 
-min_timeout = 2
+min_timeout = 5
 max_timeout = 60
 dynamic_timeout = max_timeout
 mailbox_server = None
