@@ -256,6 +256,19 @@ def deletefolder(server, folder):
 
 # ---------------
 
+def reliable_fetch(p_limitx):
+
+    server = refresh_connection()
+    try:
+        preview = list(server.fetch(limit=p_limitx, bulk=True, reverse=True))
+    except Exception as e:
+        server = refresh_connection()
+        preview = list(server.fetch(limit=p_limitx, bulk=True, reverse=True))
+
+    return preview
+
+# ---------------
+
 def reliable_move(FULLPATH, x_uid):
 
     server = refresh_connection()
@@ -677,7 +690,13 @@ def speakitem(vv):
         convert = time.strftime("%M:%S", time.gmtime(seconds))
     
         print('(', (index+1), 'of', count, ')  [', convert, ']  ', part)
-        Dispatch("SAPI.SpVoice").Speak(part)
+        
+        try:
+            Dispatch("SAPI.SpVoice").Speak(part)
+        except Exception as e:
+            Dispatch("SAPI.SpVoice").Speak('Recovering from exception. ')
+            print(e)
+            Dispatch("SAPI.SpVoice").Speak(e)
 
 # ---------------
 
@@ -760,16 +779,14 @@ def mode_sort():
     
     for cycle in range(1, 200):
     
-        if cycle % 25 == 0:
-            server = refresh_connection()
-    
         if dynamic_timeout == min_timeout:
-        
-            preview = list(server.fetch(limit=1, bulk=True, reverse=True))
+                    
+            preview = reliable_fetch(1)
+           
             peekEmail = '0'
 
         else:
-            preview = list(server.fetch(limit=7, bulk=True, reverse=True))
+            preview = reliable_fetch(7)
 
             print("")
             print("")
@@ -958,7 +975,7 @@ elif mode_selection == 'M':
                         println(f.name, '')
                         server.folder.set(f.name)
                     
-                        preview = list(server.fetch(bulk=True, limit=100))
+                        preview = reliable_fetch(100)
                         
                         if len(preview) == 0:
                             deletefolder(server, f)
