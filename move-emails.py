@@ -127,9 +127,10 @@ def input_for_mode_selection(q, default_or_prompt):
 
 def prettyinput(q):
     print('')
-    print('-----------------------')
-    xx = input('<< ' + q + ' >> ')
-    print('-----------------------')
+    tmp = '<< ' + q + ' >> '
+    print('-' * len(tmp))
+    xx = input(tmp)
+    print('-' * len(tmp))
     return xx
 
 # ---------------
@@ -333,7 +334,6 @@ def refresh_connection(set_folder = None):
 
 def mode_prioritize(folderx):
 
-   
     if folderdepth(folderx) == 2:
     
         print('-----------------------')
@@ -357,8 +357,8 @@ def mode_prioritize(folderx):
         newfolder = '/'.join(folderparts)
         
         folder_rename(folderx, newfolder)
-        
 
+# ---------------
 
 def mode_queue(folderx):
 
@@ -601,14 +601,12 @@ def mode_read(folderx, mode_selection):
                 
 
             if after_command == 't' or after_command == 'tq':
-                moveemails(server, 'Trash', [msg.uid])
-                speakline('', 'Email deleted')
+                reliable_move('Trash', msg.uid)
 
             if after_command == 's' or after_command == 'sq':
-                moveemails(server, 'Review Later', [msg.uid])
-                speakline('', 'Email starred')
+                reliable_move('Review Later', msg.uid)
             
-            if after_command == 'q' or after_command == 'dq' or after_command == 'sq':
+            if after_command == 'q' or after_command == 'tq' or after_command == 'sq':
                 return 'q'
 
 # ---------------
@@ -762,7 +760,7 @@ def speakitem(vv):
 # ---------------
 
 def folderselection():
-    go = spokeninput('Folder filter: ')
+    go = prettyinput('Folder filter: ')
     go = '*' + go + '*'
     
     server = refresh_connection()
@@ -772,16 +770,27 @@ def folderselection():
     
     if len(folders) == 0:
         return folderselection()
-        
+    
+    showing = 0
+    
     for f in folders:
         print(f.name)
+        showing += 1
+        
+        if (showing == 30):
+            showing = 0
+            
+            if input('Press any key or q to quit: ') == 'q':
+                break
+                
+            
 
     if len(folders) == 1:
         return folders
         
     println('Folders found', len(folders))
 
-    if spokeninput('Do you want to select these folders? ') != 'y':
+    if prettyinput('Do you want to select these folders? ') != 'y':
         return folderselection()
         
     server = refresh_connection()
@@ -932,6 +941,8 @@ mailbox_server = None
 
 while True:
 
+    screen_clear()
+
     println('Press A', 'Run (A)ll day and keep inbox sorted')
     println('Press S', 'Automatically sort emails in your inbox to subfolders.')
     println('Press M', 'Empty out select subfolders.')
@@ -940,6 +951,8 @@ while True:
     println('Press R', 'Read emails in your inbox or other folder.')
     println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
     println('Press Q', 'Fill up a player queue')
+    print('-----------------------')
+    println('Press X', 'To quit')
 
     mode_selection = spokeninput('Select a mode: ').upper()
 
@@ -992,6 +1005,8 @@ while True:
 
         mode_sort()
         
-
+    elif mode_selection == 'X':
+    
+        break
 
         
