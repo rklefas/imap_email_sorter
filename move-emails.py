@@ -480,6 +480,67 @@ def mode_delete():
 
 # ---------------
 
+def mode_move(folders):
+
+    server = refresh_connection()
+    
+    for f in folders:
+        try:
+
+            stat = server.folder.status(f.name)
+            
+            if '\\HasNoChildren' in f.flags and stat.get('MESSAGES') > 0:
+                println(f.name, 'has no children folders and ' + str(stat.get('MESSAGES')) + ' emails')
+            elif '\\HasNoChildren' in f.flags and stat.get('MESSAGES') == 0:
+                deletefolder(server, f)
+            else:
+                println(f.name, '')
+                
+        except Exception as e:
+            println(f.name, '')
+            speakline('Failed to prepare folder for moving', str(e))
+
+                
+    if spokeninput('Empty all of these folders? ') == 'y':
+    
+        println('Option', 'INBOX')
+        println('Option', 'Trash')
+        destinationfolder = spokeninput('Which folder to put in? ')
+        
+        stat = server.folder.status(destinationfolder)
+        print(stat)
+
+
+        for f in folders:
+            try:
+                for cycle in range(1, 100):
+                
+                    println(f.name, '')
+                    server.folder.set(f.name)
+                
+                    preview = reliable_fetch(100)
+                    
+                    if len(preview) == 0:
+                        deletefolder(server, f)
+                        break
+                        
+                    FILTERED_UIDS = []
+
+                    for index, msg in enumerate(preview):
+                        FILTERED_UIDS.append(msg.uid)
+
+                    moveemails(server, destinationfolder, FILTERED_UIDS)
+                    
+            
+            except Exception as e:
+                println(f.name, '')
+                speakline('Failed to stat folder for moving', str(e))
+
+
+
+
+
+
 def mode_read(folderx, mode_selection):
 
     server = refresh_connection(folderx)
@@ -869,136 +930,68 @@ max_timeout = 60
 dynamic_timeout = max_timeout
 mailbox_server = None
 
+while True:
 
-println('Press A', 'Run (A)ll day and keep inbox sorted')
-println('Press S', 'Automatically sort emails in your inbox to subfolders.')
-println('Press M', 'Empty out select subfolders.')
-println('Press C', 'Cleanup mailbox.  Delete empty subfolders.')
-println('Press P', 'Prioritize senders')
-println('Press R', 'Read emails in your inbox or other folder.')
-println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
-println('Press Q', 'Fill up a player queue')
+    println('Press A', 'Run (A)ll day and keep inbox sorted')
+    println('Press S', 'Automatically sort emails in your inbox to subfolders.')
+    println('Press M', 'Empty out select subfolders.')
+    println('Press C', 'Cleanup mailbox.  Delete empty subfolders.')
+    println('Press P', 'Prioritize senders')
+    println('Press R', 'Read emails in your inbox or other folder.')
+    println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
+    println('Press Q', 'Fill up a player queue')
 
+    mode_selection = spokeninput('Select a mode: ').upper()
 
-mode_selection = spokeninput('Select a mode: ').upper()
+    if mode_selection == 'A':
 
-if mode_selection == 'A':
-
-    while True:
-    
-        mode_sort()
-
-        if random.randint(0, 4) == 1:
-            mode_delete()
+        while True:
         
-        gc.collect()
-        print('Waiting for a while...')
-        time.sleep(60*60*4)
+            mode_sort()
 
-    
-    
-elif mode_selection == 'C':
+            if random.randint(0, 4) == 1:
+                mode_delete()
+            
+            gc.collect()
+            print('Waiting for a while...')
+            time.sleep(60*60*4)
 
-    mode_delete()
+        
+    elif mode_selection == 'C':
 
-elif mode_selection == 'Q':
+        mode_delete()
 
-    while True:
-    
+    elif mode_selection == 'Q':
+
         folders = folderselection()
 
         for f in folders:
             mode_queue(f.name)
 
+    elif mode_selection == 'P':
 
-
-elif mode_selection == 'P':
-
-    while True:
-    
         folders = folderselection()
 
         for f in folders:
             mode_prioritize(f.name)
 
+    elif mode_selection == 'R' or mode_selection == 'SL':
 
-elif mode_selection == 'R' or mode_selection == 'SL':
-
-    while True:
-    
         folders = folderselection()
 
         for f in folders:
-
             if mode_read(f.name, mode_selection) == 'q':
                 break
 
-
-elif mode_selection == 'M':
-
-    while True:
-    
-        server = refresh_connection()
+    elif mode_selection == 'M':
+        
         folders = folderselection()
+        mode_move(folders)
+
+    elif mode_selection == 'S':
+
+        mode_sort()
         
-        for f in folders:
-            try:
-
-                stat = server.folder.status(f.name)
-                
-                if '\\HasNoChildren' in f.flags and stat.get('MESSAGES') > 0:
-                    println(f.name, 'has no children folders and ' + str(stat.get('MESSAGES')) + ' emails')
-                elif '\\HasNoChildren' in f.flags and stat.get('MESSAGES') == 0:
-                    deletefolder(server, f)
-                else:
-                    println(f.name, '')
-                    
-            except Exception as e:
-                println(f.name, '')
-                speakline('Failed to prepare folder for moving', str(e))
-
-                    
-        if spokeninput('Empty all of these folders? ') == 'y':
-        
-            println('Option', 'INBOX')
-            println('Option', 'Trash')
-            destinationfolder = spokeninput('Which folder to put in? ')
-            
-            stat = server.folder.status(destinationfolder)
-            print(stat)
-
-
-            for f in folders:
-                try:
-                    for cycle in range(1, 100):
-                    
-                        println(f.name, '')
-                        server.folder.set(f.name)
-                    
-                        preview = reliable_fetch(100)
-                        
-                        if len(preview) == 0:
-                            deletefolder(server, f)
-                            break
-                            
-                        FILTERED_UIDS = []
-
-                        for index, msg in enumerate(preview):
-                            FILTERED_UIDS.append(msg.uid)
-
-                        moveemails(server, destinationfolder, FILTERED_UIDS)
-                        
-                
-                except Exception as e:
-                    println(f.name, '')
-                    speakline('Failed to stat folder for moving', str(e))
-
-            
-
-elif mode_selection == 'S':
-
-    mode_sort()
-    
 
 
         
