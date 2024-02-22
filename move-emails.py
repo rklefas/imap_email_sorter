@@ -60,7 +60,7 @@ def summarizer(msg):
 
 def bodysummary(bodytype, raw):
 
-    shrunken = cleantext(raw)
+    shrunken = cleantext(raw, bodytype)
 
     print('---------', bodytype.upper(), 'BODY ----------')
     println('Raw Length', len(raw))
@@ -145,9 +145,21 @@ def spokeninputtimeout(q, default):
     Dispatch("SAPI.SpVoice").Speak(q)
     
     global dynamic_timeout
+    
+    working_timeout = 15
 
     try:
-        val = inputimeout(q + ' (' + str(dynamic_timeout) + ' sec timeout, default : ' + default + ') ', dynamic_timeout)
+        print('')
+        print('-----------------------')
+        print('  Enter == to pause timeout')
+
+        val = inputimeout(q + ' (' + str(working_timeout) + ' sec timeout, default : ' + default + ') ', working_timeout)
+
+        print('-----------------------')
+        
+        if val == '==':
+            return spokeninput(q)
+            
         dynamic_timeout = max_timeout
         return val
     except TimeoutOccurred:
@@ -215,7 +227,7 @@ def println(key, value):
 
 def dropfolder(fname):
 
-    println('Trying to drop folder', fname)
+    println('Checking to drop folder', fname)
 
     server = refresh_connection()
     folders = list(server.folder.list(search_args=fname))
@@ -315,9 +327,6 @@ def refresh_connection(set_folder = None):
         mailbox_server.folder.status()
     except Exception as e:
 
-#        if random.randint(0, 1) == 1:
-#            return mailbox_server
-
         configs = json.load(open('./config.json', 'r'))
         mailbox_server = imap_tools.MailBox(configs['host']).login(configs['user'], configs['pass'])
         println("Logged into mailbox", configs['host'])
@@ -325,8 +334,7 @@ def refresh_connection(set_folder = None):
     
     if set_folder != None:
         mailbox_server.folder.set(set_folder)
-        println('  Browsing Folder', mailbox_server.folder.get())
-    
+        println('Reconnected to Folder', mailbox_server.folder.get())
 
     return mailbox_server
 
@@ -543,8 +551,12 @@ def mode_move(folders):
 
 def mode_read(folderx, mode_selection):
 
-    server = refresh_connection(folderx)
     speakline('Current Folder', folderx)
+
+    if folderdepth(folderx) != 3:
+        return
+
+    server = refresh_connection(folderx)
     
     while True:
         
@@ -652,7 +664,9 @@ def cleanbody(msg):
 
     if len(msg.html):
         bodytype = 'html'
-        raw = BeautifulSoup(msg.html).body.get_text()
+        
+        raw = cleantext(msg.html, bodytype)
+        raw = BeautifulSoup(raw).body.get_text()
         cleaned = cleantext(raw)
         
         if len(cleaned) < 2000:
@@ -660,35 +674,46 @@ def cleanbody(msg):
 
     else:
         bodytype = 'text'
-        raw = msg.text
-        cleaned = cleantext(raw)
+        cleaned = cleantext(msg.text, bodytype)
         
-        if readability(raw, cleaned) < 60:
+        if readability(msg.text, cleaned) < 60:
             return ''
     
     return bodytype + ' body\n\n' + cleaned
 
 # ---------------
 
-def cleantext(vv):
+def cleantext(vv, bodytype = None):
 
-    vv = cleanreplacer(vv, '* * ', '****')
-    vv = cleanreplacer(vv, '- - ', '----')
-    vv = cleanreplacer(vv, '&nbsp;', ' ')
-    vv = cleanreplacer(vv, '&amp;', ' and ')
-    vv = cleanreplacer(vv, '==', '**')
-    vv = cleanreplacer(vv, '*=', '**')
-    vv = cleanreplacer(vv, '__', '**')
-    vv = cleanreplacer(vv, '*_', '**')
-    vv = cleanreplacer(vv, '  ', ' ')
-    vv = cleanreplacer(vv, '<', '-')
-    vv = cleanreplacer(vv, '>', '-')
-    vv = cleanreplacer(vv, '\r\n', '\n')
-    vv = cleanreplacer(vv, '\n\n\n', '\n')
-    vv = cleanreplacer(vv, 'https:', 'http:')
+    if bodytype == 'html':
+
+        # remove styles in the body
+        vv = re.sub(r'<style(.+)</style>', 'Style tag removed. ', vv, flags=re.DOTALL)
     
-    vv = vv.strip()
-    vv = re.sub("http://(\S+)", "", vv)
+        vv = cleanreplacer(vv, '</p><', '</p>\n\n<')
+        vv = cleanreplacer(vv, '</h1><', '</h1>\n\n<')
+        vv = cleanreplacer(vv, '</div><', '</div>\n\n<')
+
+
+    if bodytype == 'text':
+
+        vv = cleanreplacer(vv, '* * ', '****')
+        vv = cleanreplacer(vv, '- - ', '----')
+        vv = cleanreplacer(vv, '&nbsp;', ' ')
+        vv = cleanreplacer(vv, '&amp;', ' and ')
+        vv = cleanreplacer(vv, '==', '**')
+        vv = cleanreplacer(vv, '*=', '**')
+        vv = cleanreplacer(vv, '__', '**')
+        vv = cleanreplacer(vv, '*_', '**')
+        vv = cleanreplacer(vv, '  ', ' ')
+        vv = cleanreplacer(vv, '<', '-')
+        vv = cleanreplacer(vv, '>', '-')
+        vv = cleanreplacer(vv, '\r\n', '\n')
+        vv = cleanreplacer(vv, '\n\n\n', '\n')
+        vv = cleanreplacer(vv, 'https:', 'http:')
+        
+        vv = vv.strip()
+        vv = re.sub("http://(\S+)", "", vv)
     
     vv = breakfooter(vv, 'Copyright © 20')
     vv = breakfooter(vv, 'You are receiving this email')
@@ -739,14 +764,32 @@ def breakfooter(xx, breakoff):
 def speakitem(vv):
 
 #    tmp = textwrap.wrap(vv, replace_whitespace=False, drop_whitespace=False)
+# put in textwrap
+
+# put in options to exit speech early, async speech
+
     parts = vv.split('\n')
     count = len(parts)
     start_time = time.time()
+    pause_time = None
+    pause_count = 0
     
-    for index, part in enumerate(parts):
+    for index, partraw in enumerate(parts):
     
-        seconds = time.time() - start_time
-        convert = time.strftime("%M:%S", time.gmtime(seconds))
+        if pause_time == None:
+            pause_count += 1
+            pause_time = time.time() + (60 * pause_count)
+        
+        
+        if time.time() > pause_time:
+            if spokeninputtimeout('X to stop, or do nothing to continue', '') == 'x':
+                break
+            else:
+                pause_time = None
+            
+        part = partraw.strip()
+        runtime = time.time() - start_time
+        convert = time.strftime("%M:%S", time.gmtime(runtime))
     
         print('(', (index+1), 'of', count, ')  [', convert, ']  ', part)
         
