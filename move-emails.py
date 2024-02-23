@@ -47,20 +47,20 @@ def summarizer(msg):
     println('Date', str(msg.date))
     println('Subject', msg.subject)
     println('Flags', msg.flags)
-    
-    if len(msg.html):
-        raw = BeautifulSoup(msg.html).body.get_text()
-        bodysummary('html', raw)
 
-    if len(msg.text):
-        raw = msg.text
-        bodysummary('text', raw)
+    
+    raw = cleantext(msg.html, 'html')
+    raw = BeautifulSoup(raw).body.get_text()
+    shrunken = cleantext(raw)
+    bodysummary('html', msg.html, shrunken)
+
+
+    shrunken = cleantext(msg.text, 'text')
+    bodysummary('text', msg.text, shrunken)
 
 # ---------------
 
-def bodysummary(bodytype, raw):
-
-    shrunken = cleantext(raw, bodytype)
+def bodysummary(bodytype, raw, shrunken):
 
     print('---------', bodytype.upper(), 'BODY ----------')
     println('Raw Length', len(raw))
@@ -392,9 +392,9 @@ def mode_queue(folderx):
             
             summarizer(msg)
             
-            after_command = prettyinput('Press R to read.  Press T to trash or S to star.  Q to run queue now. ')
+            after_command = prettyinput('Press R to read.  Press T to trash or S to star.  Q to quit and run queue now. ')
             
-            if after_command == 'q':
+            if exit_command(after_command):
                 break
 
             actionstack.append(after_command)
@@ -618,7 +618,7 @@ def mode_read(folderx, mode_selection):
             if after_command == 's' or after_command == 'sq':
                 reliable_move('Review Later', msg.uid)
             
-            if after_command == 'q' or after_command == 'tq' or after_command == 'sq':
+            if exit_command(after_command):
                 return 'q'
 
 # ---------------
@@ -705,16 +705,19 @@ def cleantext(vv, bodytype = None):
         vv = cleanreplacer(vv, '*=', '**')
         vv = cleanreplacer(vv, '__', '**')
         vv = cleanreplacer(vv, '*_', '**')
-        vv = cleanreplacer(vv, '  ', ' ')
         vv = cleanreplacer(vv, '<', '-')
         vv = cleanreplacer(vv, '>', '-')
-        vv = cleanreplacer(vv, '\r\n', '\n')
-        vv = cleanreplacer(vv, '\n\n\n', '\n')
         vv = cleanreplacer(vv, 'https:', 'http:')
         
         vv = vv.strip()
         vv = re.sub("http://(\S+)", "", vv)
     
+    vv = cleanreplacer(vv, '   ', ' ')
+    vv = cleanreplacer(vv, '   ', ' ')
+    vv = cleanreplacer(vv, '\r\n', '\n')
+    vv = cleanreplacer(vv, '\n \n', '\n\n')
+    vv = cleanreplacer(vv, '\n\n\n', '\n')
+    vv = breakfooter(vv, 'Privacy Policy')
     vv = breakfooter(vv, 'Copyright © 20')
     vv = breakfooter(vv, 'You are receiving this email')
     vv = breakfooter(vv, 'If you no longer wish to receive our emails')
@@ -782,19 +785,19 @@ def speakitem(vv):
         
         
         if time.time() > pause_time:
-            if spokeninputtimeout('X to stop, or do nothing to continue', '') == 'x':
+            if exit_command(spokeninputtimeout('X to stop, or do nothing to continue', '')):
                 break
             else:
                 pause_time = None
             
-        part = partraw.strip()
+        spokenpart = partraw.strip()
         runtime = time.time() - start_time
         convert = time.strftime("%M:%S", time.gmtime(runtime))
     
-        print('(', (index+1), 'of', count, ')  [', convert, ']  ', part)
+        print('(', (index+1), 'of', count, ')  [', convert, ']  ', spokenpart)
         
         try:
-            Dispatch("SAPI.SpVoice").Speak(part)
+            Dispatch("SAPI.SpVoice").Speak(spokenpart)
         except Exception as e:
             Dispatch("SAPI.SpVoice").Speak('Recovering from exception. ')
             print(e)
@@ -879,11 +882,24 @@ def folder_rename(oldname, newname):
 
 # ---------------
 
+def exit_command(vv):
+
+    if vv == None:
+        return False
+    if vv.upper() == 'Q':
+        return True
+    if vv.upper() == 'X':
+        return True
+
+    return False
+
+# ---------------
+
 def mode_sort():
 
     ############### Login to Mailbox ######################
 
-    server = refresh_connection()
+    server = refresh_connection('INBOX')
 
     #################### List Emails #####################
     
@@ -912,7 +928,7 @@ def mode_sort():
             
             peekEmail = spokeninputtimeout('Pick an email to sort. ', '0')
             
-            if (peekEmail == ''):
+            if (exit_command(peekEmail)):
                 break
 
         
@@ -981,11 +997,16 @@ min_timeout = 5
 max_timeout = 60
 dynamic_timeout = max_timeout
 mailbox_server = None
+uptime_tracker = time.time()
 
 while True:
 
     screen_clear()
-
+    
+    println('Started At', time.strftime("%H:%M:%S", time.gmtime(uptime_tracker)))
+    println('Now', time.strftime("%H:%M:%S", time.gmtime()))
+    print('-----------------------')
+    
     println('Press A', 'Run (A)ll day and keep inbox sorted')
     println('Press S', 'Automatically sort emails in your inbox to subfolders.')
     println('Press M', 'Empty out select subfolders.')
@@ -993,7 +1014,7 @@ while True:
     println('Press P', 'Prioritize senders')
     println('Press R', 'Read emails in your inbox or other folder.')
     println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
-    println('Press Q', 'Fill up a player queue')
+    println('Press L', 'Fill up a player list queue')
     print('-----------------------')
     println('Press X', 'To quit')
 
@@ -1017,7 +1038,7 @@ while True:
 
         mode_delete()
 
-    elif mode_selection == 'Q':
+    elif mode_selection == 'L':
 
         folders = folderselection()
 
@@ -1036,7 +1057,9 @@ while True:
         folders = folderselection()
 
         for f in folders:
-            if mode_read(f.name, mode_selection) == 'q':
+            response = mode_read(f.name, mode_selection)
+            
+            if exit_command(response):
                 break
 
     elif mode_selection == 'M':
@@ -1048,7 +1071,7 @@ while True:
 
         mode_sort()
         
-    elif mode_selection == 'X':
+    elif exit_command(mode_selection):
     
         break
 
