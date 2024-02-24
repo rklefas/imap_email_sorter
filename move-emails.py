@@ -150,12 +150,12 @@ def spokeninputtimeout(q, default):
 
     try:
         print('')
-        print('-----------------------')
+        print_divider()
         print('  Enter == to pause timeout')
 
         val = inputimeout(q + ' (' + str(working_timeout) + ' sec timeout, default : ' + default + ') ', working_timeout)
 
-        print('-----------------------')
+        print_divider()
         
         if val == '==':
             return spokeninput(q)
@@ -215,6 +215,11 @@ def createfolder(FOLDERSTACK, count = None):
     println('Check for creation', FULLPATH)
     
     return FULLPATH
+    
+# ---------------
+
+def print_divider():
+    print('----------------------------------')
     
 # ---------------
 
@@ -290,7 +295,7 @@ def reliable_move(FULLPATH, x_uid):
         FOLDERSTACK = FULLPATH.split('/')
         createfolder(FOLDERSTACK)
 
-    print('-----------------------')
+    print_divider()
     println('Move to Folder', FULLPATH)
     
     moveemails(server, FULLPATH, [x_uid])
@@ -344,7 +349,7 @@ def mode_prioritize(folderx):
 
     if folderdepth(folderx) == 2:
     
-        print('-----------------------')
+        print_divider()
         println('Prioritize folder', folderx)
         
         pri = prettyinput('What priority? (A B C F ?) ').upper().strip()
@@ -551,7 +556,7 @@ def mode_move(folders):
 
 def mode_read(folderx, mode_selection):
 
-    speakline('Current Folder', folderx)
+    speakline('READ MODE - Folder', folderx)
 
     if folderdepth(folderx) != 3:
         return
@@ -581,7 +586,7 @@ def mode_read(folderx, mode_selection):
             
         speakline('Time To Read', timetoread(alllength))
         speaknumber('Emails Length', alllength)
-        print('-----------------------')
+        print_divider()
 
         for index, msg in enumerate(preview):
             
@@ -820,16 +825,15 @@ def folderselection():
     showing = 0
     
     for f in folders:
-        print(f.name)
         showing += 1
+        print(showing, f.name)
         
         if (showing == 30):
-            showing = 0
-            
-            if input('Press any key or q to quit: ') == 'q':
+            if exit_command(prettyinput('Press enter to show more folders, or q to quit: ')):
                 break
-                
-            
+            else:
+                showing = 0
+                screen_clear()
 
     if len(folders) == 1:
         return folders
@@ -997,15 +1001,15 @@ min_timeout = 5
 max_timeout = 60
 dynamic_timeout = max_timeout
 mailbox_server = None
-uptime_tracker = time.time()
+uptime_tracker = datetime.now()
 
 while True:
 
     screen_clear()
     
-    println('Started At', time.strftime("%H:%M:%S", time.gmtime(uptime_tracker)))
-    println('Now', time.strftime("%H:%M:%S", time.gmtime()))
-    print('-----------------------')
+    println('Started At', uptime_tracker.strftime("%I:%M%p"))
+    println('Now', datetime.now().strftime("%I:%M%p"))
+    print_divider()
     
     println('Press A', 'Run (A)ll day and keep inbox sorted')
     println('Press S', 'Automatically sort emails in your inbox to subfolders.')
@@ -1015,7 +1019,7 @@ while True:
     println('Press R', 'Read emails in your inbox or other folder.')
     println('Press SL', 'Sit and Listen.  Automatically read and delete emails in your inbox or other folder.')
     println('Press L', 'Fill up a player list queue')
-    print('-----------------------')
+    print_divider()
     println('Press X', 'To quit')
 
     mode_selection = spokeninput('Select a mode: ').upper()
