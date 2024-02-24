@@ -38,14 +38,17 @@ def show_message(index, msg):
 
 # ---------------
 
-def summarizer(msg):
+def summarizer(msg, folder = None, clearing = False):
 
     screen_clear()
     
-    print('-------------------------')
+    if folder != None:
+        println('Folder', folder)
+        print('-------------------------')
+        
     println('From', msg.from_values.name)
     println('Date', str(msg.date))
-    println('Subject', msg.subject)
+    speakline('Subject', msg.subject)
     println('Flags', msg.flags)
 
     
@@ -118,53 +121,88 @@ def determinefolder(msg):
 
 def input_for_mode_selection(q, default_or_prompt):
 
-    if default_or_prompt == '[ask]':
+    global dynamic_timeout
+
+
+    if dynamic_timeout == None:
         return spokeninput(q)
     else:
         return spokeninputtimeout(q, default_or_prompt)
 
 # ---------------
 
-def prettyinput(q):
+def prettyinput(q, defaultValue = None):
     print('')
     tmp = '<< ' + q + ' >> '
+    
+    if defaultValue != None:
+        print(' *** Default value is', defaultValue)
+    
     print('-' * len(tmp))
     xx = input(tmp)
+    
+    if xx == '' and defaultValue != None:
+        return defaultValue
+    
     print('-' * len(tmp))
     return xx
 
 # ---------------
 
-def spokeninput(q):
+def spokeninput(q, defaultValue = None):
     Dispatch("SAPI.SpVoice").Speak(q)
-    return prettyinput(q)
+    return prettyinput(q, defaultValue)
     
 # ---------------
+   
+def inputcontrols(num = None):
+
+    if num == None:
+        num = spokeninput('What timeout for the inputs? ')
     
-def spokeninputtimeout(q, default):
+    global dynamic_timeout
+
+    if num == '':
+        dynamic_timeout = None
+    else:
+        dynamic_timeout = int(num)
+        
+    return dynamic_timeout
+    
+# ---------------
+   
+def spokeninputtimeout(q, default, passed_timeout = None):
     Dispatch("SAPI.SpVoice").Speak(q)
     
     global dynamic_timeout
     
-    working_timeout = 15
+    if passed_timeout == None:
+        newtx = dynamic_timeout
+    else:
+        newtx = passed_timeout
 
     try:
         print('')
         print_divider()
-        print('  Enter == to pause timeout')
+        print('  Enter == to alter timeout')
 
-        val = inputimeout(q + ' (' + str(working_timeout) + ' sec timeout, default : ' + default + ') ', working_timeout)
+        val = inputimeout(q + ' (' + str(newtx) + ' sec timeout, default : ' + default + ') ', newtx)
 
         print_divider()
         
         if val == '==':
-            return spokeninput(q)
+            newtx = inputcontrols()
+        
+            if newtx == None:
+                return spokeninput(q, default)
+            else:
+                return spokeninputtimeout(q, default, newtx)
             
-        dynamic_timeout = max_timeout
+#        dynamic_timeout = max_timeout
         return val
     except TimeoutOccurred:
         Dispatch("SAPI.SpVoice").Speak('Defaulted to '+default)
-        dynamic_timeout = max(min_timeout, int(dynamic_timeout / 2))
+##        dynamic_timeout = max(min_timeout, int(dynamic_timeout / 2))
         return default
 
 # ---------------
@@ -179,7 +217,11 @@ def speaknumber(key, val):
 
 def speakline(key, val):
     println(key, val)
-#    Dispatch("SAPI.SpVoice").Speak(key + ' ' + val)
+    
+    global dynamic_timeout
+
+    if dynamic_timeout != None:
+        Dispatch("SAPI.SpVoice").Speak(key + ' ' + val)
 
 # ---------------
 
@@ -200,7 +242,7 @@ def createfolder(FOLDERSTACK, count = None):
             return createfolder(['ERROR-FETCHING'])
         elif count == 1:
             return createfolder(['PYTHON-SORT', 'SINGLE-EMAIL'])
-        elif spokeninputtimeout('  Not found.  Create this folder? ', 'y').lower().strip() == 'y':
+        elif input_for_mode_selection('  Not found.  Create this folder? ', 'y').lower().strip() == 'y':
         
             for FOLDER in FOLDERSTACK:
                 pack = pack + '/' + FOLDER
@@ -278,9 +320,15 @@ def reliable_fetch(p_limitx):
 
     server = refresh_connection()
     try:
-        preview = list(server.fetch(limit=p_limitx, bulk=True, reverse=True))
+        
+        preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=p_limitx, bulk=True, reverse=True, mark_seen=False))
+        
+        # todo: add fetch unread and read messages to this
     except Exception as e:
         server = refresh_connection()
+        preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=p_limitx, bulk=True, reverse=True, mark_seen=False))
+        
+    if (len(preview) == 0):
         preview = list(server.fetch(limit=p_limitx, bulk=True, reverse=True))
 
     return preview
@@ -379,11 +427,7 @@ def mode_queue(folderx):
     
     while True:
         
-        preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=100, bulk=True, reverse=True, mark_seen=False))
-        
-        if (len(preview) == 0):
-            if spokeninput('Do you want to look for already seen emails? ') == 'y':
-                preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=100, bulk=True, reverse=True, mark_seen=False))
+        preview = reliable_fetch(100)
             
         speakline('Fetched Emails', str(len(preview)))
         
@@ -408,26 +452,28 @@ def mode_queue(folderx):
         for index, msg in enumerate(preview):
 
             after_command = actionstack.pop(0)
-            mode_read_process(msg, after_command)
+            summarizer(msg, server.folder.get(), True)
+            mode_read_process(msg, after_command, server.folder.get())
 
 # ---------------
 
-def mode_read_process(msg, after_command):
+def mode_read_process(msg, after_command, folderx):
 
     server = refresh_connection()
-
+    
     if after_command == 'r':
     
-        summarizer(msg)
         shrunken = cleanbody(msg)
 
         if len(shrunken) == 0:
             reliable_move(folderx + '/Unreadable', msg.uid)
             return
-        
+            
         speakitem(shrunken)
+        
+        summarizer(msg, server.folder.get())
 
-        after_command = spokeninput('Email end.  Press T to trash or S to star. ')
+        after_command = spokeninputtimeout('Email end.  Press T to trash or RV to review later.  ', 't', 20)
         
         try:
             server.folder.status()
@@ -437,12 +483,13 @@ def mode_read_process(msg, after_command):
         server.flag([msg.uid], imap_tools.MailMessageFlags.SEEN, True)
 
     if after_command == 't':
-        moveemails(server, 'Trash', [msg.uid])
-        speakline('', 'Email deleted')
+        reliable_move('Trash', msg.uid)
 
-    if after_command == 's':
-        moveemails(server, 'Review Later', [msg.uid])
-        speakline('', 'Email starred')
+    if after_command == 'rv':
+        reliable_move('Review Later', msg.uid)
+        
+    if after_command == 'q' or after_command == 'tq' or after_command == 'rvq':
+        return 'q'
 
 # ---------------
 
@@ -554,23 +601,18 @@ def mode_move(folders):
 
 
 
-def mode_read(folderx, mode_selection):
-
-    speakline('READ MODE - Folder', folderx)
+def mode_read(folderx):
 
     if folderdepth(folderx) != 3:
         return
 
+    speakline('READ MODE - Folder', folderx)
     server = refresh_connection(folderx)
     
     while True:
         
-        preview = list(server.fetch(criteria=imap_tools.AND(seen=False), limit=50, bulk=True, reverse=True, mark_seen=False))
-        
-        if (len(preview) == 0):
-            if spokeninput('Do you want to look for already seen emails? ') == 'y':
-                preview = list(server.fetch(criteria=imap_tools.AND(seen=True), limit=100, bulk=True, reverse=True, mark_seen=False))
-            
+        preview = reliable_fetch(50)
+
         speakline('Fetched Emails', str(len(preview)))
         
         if (len(preview) == 0):
@@ -590,40 +632,11 @@ def mode_read(folderx, mode_selection):
 
         for index, msg in enumerate(preview):
             
-            summarizer(msg)
-            shrunken = cleanbody(msg)
+            summarizer(msg, server.folder.get())
+            after_command = input_for_mode_selection('Press R to read.  Press T to trash or S to star.  Q to quit. ', 'r')
+            done_reading = mode_read_process(msg, after_command, server.folder.get())
             
-            if len(shrunken) == 0:
-                reliable_move(folderx + '/Unreadable', msg.uid)
-                continue
-            
-            default_preview = 'r' if mode_selection == 'SL' else '[ask]'
-            default_finish = 't' if mode_selection == 'SL' else '[ask]'
-            
-            after_command = input_for_mode_selection('Press R to read.  Press T to trash or S to star.  Q to quit. ', default_preview)
-
-            if after_command == 'r':
-                
-                speakitem(shrunken)
-
-                after_command = input_for_mode_selection('Email end.  Press T to trash or S to star.  Q to quit. ', default_finish)
-                
-                try:
-                    server.folder.status(folderx)
-                except Exception as e:
-                    server = refresh_connection(folderx)
-            
-                server.flag([msg.uid], imap_tools.MailMessageFlags.SEEN, True)
-
-                
-
-            if after_command == 't' or after_command == 'tq':
-                reliable_move('Trash', msg.uid)
-
-            if after_command == 's' or after_command == 'sq':
-                reliable_move('Review Later', msg.uid)
-            
-            if exit_command(after_command):
+            if exit_command(done_reading):
                 return 'q'
 
 # ---------------
@@ -661,6 +674,10 @@ def cleanreplacer(vv, find, puts):
 # ---------------
 
 def readability(raw, cleaned):
+    
+    if len(raw) == 0:
+        return 0
+
     return int((len(cleaned) / len(raw)) * 100)
 
 # ---------------
@@ -693,7 +710,7 @@ def cleantext(vv, bodytype = None):
     if bodytype == 'html':
 
         # remove styles in the body
-        vv = re.sub(r'<style(.+)</style>', 'Style tag removed. ', vv, flags=re.DOTALL)
+        vv = re.sub(r'<style(.+)</style>', '', vv, flags=re.DOTALL)
     
         vv = cleanreplacer(vv, '</p><', '</p>\n\n<')
         vv = cleanreplacer(vv, '</h1><', '</h1>\n\n<')
@@ -790,7 +807,7 @@ def speakitem(vv):
         
         
         if time.time() > pause_time:
-            if exit_command(spokeninputtimeout('X to stop, or do nothing to continue', '')):
+            if exit_command(spokeninputtimeout('X to stop, or do nothing to continue', '', 20)):
                 break
             else:
                 pause_time = None
@@ -930,7 +947,7 @@ def mode_sort():
             print("")
             print("")
             
-            peekEmail = spokeninputtimeout('Pick an email to sort. ', '0')
+            peekEmail = input_for_mode_selection('Pick an email to sort. ', '0')
             
             if (exit_command(peekEmail)):
                 break
@@ -1059,9 +1076,14 @@ while True:
     elif mode_selection == 'R' or mode_selection == 'SL':
 
         folders = folderselection()
+        
+        if mode_selection == 'R':
+            inputcontrols('')
+        else:
+            inputcontrols()
 
         for f in folders:
-            response = mode_read(f.name, mode_selection)
+            response = mode_read(f.name)
             
             if exit_command(response):
                 break
