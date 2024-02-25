@@ -40,7 +40,8 @@ def show_message(index, msg):
 
 def summarizer(msg, folder = None, clearing = False):
 
-    screen_clear()
+    if clearing == True:
+        screen_clear()
     
     if folder != None:
         println('Folder', folder)
@@ -344,8 +345,9 @@ def reliable_move(FULLPATH, x_uid):
         createfolder(FOLDERSTACK)
 
     print_divider()
-    println('Move to Folder', FULLPATH)
+    speakline('Move to Folder', FULLPATH)
     
+    # todo : this must verify that the moves happened
     moveemails(server, FULLPATH, [x_uid])
 
 # ---------------
@@ -353,19 +355,24 @@ def reliable_move(FULLPATH, x_uid):
 def moveemails(server, FULLPATH, uid_list):
 
     pack = ''
+    remainingEmails = len(uid_list)
     
     for uid_one in uid_list:
     
         pack = pack + uid_one + ','
+        remainingEmails -= 1
         
-        if pack.count(',') == 10:
-            print(server.move(pack.strip(','), FULLPATH))
-            println('  Moving emails', pack)
+        if pack.count(',') == 10 or remainingEmails == 0:
+        
+            pack = pack.strip(',')
+        
+            result = server.move(pack, FULLPATH)            
+            print('Create', result[0])
+            print('Delete', result[1])
+            
+            println('  Moved emails', pack)
             pack = ''
     
-    if pack != '':
-        print(server.move(pack.strip(','), FULLPATH))
-        println('  Moving emails', pack)
 
     stat = server.folder.status(FULLPATH)
     print(stat)
@@ -459,7 +466,7 @@ def mode_queue(folderx):
 
 def mode_read_process(msg, after_command, folderx):
 
-    server = refresh_connection()
+    server = refresh_connection(folderx)
     
     if after_command == 'r':
     
@@ -471,14 +478,14 @@ def mode_read_process(msg, after_command, folderx):
             
         speakitem(shrunken)
         
-        summarizer(msg, server.folder.get())
+        summarizer(msg, server.folder.get(), False)
 
-        after_command = spokeninputtimeout('Email end.  Press T to trash or RV to review later.  ', 't', 20)
+        after_command = input_for_mode_selection('Email end.  Press T to trash or RV to review later. ', 't')
         
         try:
             server.folder.status()
         except Exception as e:
-            server = refresh_connection()
+            server = refresh_connection(folderx)
     
         server.flag([msg.uid], imap_tools.MailMessageFlags.SEEN, True)
 
@@ -643,7 +650,7 @@ def mode_read(folderx):
 
 def timetoread(xx):
     
-    tmp = max(int(xx / 600), 1)
+    tmp = max(int(xx / 600), 0)
     unit = ' Minutes'
     
     if (tmp > 59):
@@ -684,24 +691,16 @@ def readability(raw, cleaned):
 
 def cleanbody(msg):
 
-    if len(msg.html):
-        bodytype = 'html'
-        
-        raw = cleantext(msg.html, bodytype)
-        raw = BeautifulSoup(raw).body.get_text()
-        cleaned = cleantext(raw)
-        
-        if len(cleaned) < 2000:
-            return ''
-
-    else:
-        bodytype = 'text'
-        cleaned = cleantext(msg.text, bodytype)
-        
-        if readability(msg.text, cleaned) < 60:
-            return ''
+    html_cleaned = cleantext(msg.html, 'html')
+    html_cleaned = BeautifulSoup(html_cleaned).body.get_text()
+    html_cleaned = cleantext(html_cleaned)
     
-    return bodytype + ' body\n\n' + cleaned
+    text_cleaned = cleantext(msg.text, 'text')
+    
+    if len(html_cleaned) > len(text_cleaned):
+        return 'html body\n\n' + html_cleaned
+    else:
+        return 'text body\n\n' + text_cleaned
 
 # ---------------
 
@@ -949,7 +948,7 @@ def mode_sort():
             
             peekEmail = input_for_mode_selection('Pick an email to sort. ', '0')
             
-            if (exit_command(peekEmail)):
+            if (exit_command(peekEmail) or peekEmail == ''):
                 break
 
         
