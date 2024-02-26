@@ -489,13 +489,19 @@ def mode_read_process(msg, after_command, folderx):
     
         server.flag([msg.uid], imap_tools.MailMessageFlags.SEEN, True)
 
-    if after_command == 't':
-        reliable_move('Trash', msg.uid)
+    if after_command == 'b' or after_command == 'bq':
+        reliable_move('Review for Bugs', msg.uid)
+        after_command = after_command.replace('b', '')
 
-    if after_command == 'rv':
+    if after_command == 't' or after_command == 'tq':
+        reliable_move('Trash', msg.uid)
+        after_command = after_command.replace('t', '')
+
+    if after_command == 'rv' or after_command == 'rvq':
         reliable_move('Review Later', msg.uid)
+        after_command = after_command.replace('rv', '')
         
-    if after_command == 'q' or after_command == 'tq' or after_command == 'rvq':
+    if after_command == 'q':
         return 'q'
 
 # ---------------
@@ -728,10 +734,11 @@ def cleantext(vv, bodytype = None):
         vv = cleanreplacer(vv, '*_', '**')
         vv = cleanreplacer(vv, '<', '-')
         vv = cleanreplacer(vv, '>', '-')
-        vv = cleanreplacer(vv, 'https:', 'http:')
-        
-        vv = vv.strip()
-        vv = re.sub("http://(\S+)", "", vv)
+    
+    
+    
+    vv = cleanreplacer(vv, 'https:', 'http:')
+    vv = re.sub("http://(\S+)", "", vv)
     
     vv = cleanreplacer(vv, '   ', ' ')
     vv = cleanreplacer(vv, '   ', ' ')
@@ -1038,7 +1045,7 @@ while True:
     print_divider()
     println('Press X', 'To quit')
 
-    mode_selection = spokeninput('Select a mode: ').upper()
+    mode_selection = spokeninputtimeout('Select a mode: ', 's', (4*60*60)).upper()
 
     if mode_selection == 'A':
 
