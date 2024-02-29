@@ -91,7 +91,7 @@ def determinefolder(msg):
     
     foundPriority = 'PYTHON-SORT'
     
-    for baseFolder in ['PRIORITY-A', 'PRIORITY-B', 'PRIORITY-C', 'PRIORITY-F', 'PYTHON-SORT']:
+    for baseFolder in ['MANUAL-REVIEW', 'PRIORITY-A', 'PRIORITY-B', 'PRIORITY-C', 'PRIORITY-F', 'PYTHON-SORT']:
 
         TMPSTACK = [baseFolder]
         TMPSTACK.append(rearrangefrom(msg.from_values.email))
@@ -288,11 +288,10 @@ def dropfolder(fname):
 def deletefolder(server, folder):
 
     # DO NOT DELETE DOMAIN FOLDERS THAT ARE PRIORITIZED
-    if 'PRIORITY-' in folder.name:
+    if 'PRIORITY-' in folder.name or 'MANUAL-REVIEW' in folder.name:
         if folderdepth(folder.name) == 2:
             return 0
             
-
     if 'PYTHON' in folder.name:
                 
         if folderdepth(folder.name) == 3:
@@ -407,10 +406,12 @@ def mode_prioritize(folderx):
         print_divider()
         println('Prioritize folder', folderx)
         
-        pri = prettyinput('What priority? (A B C F ?) ').upper().strip()
+        pri = prettyinput('Manual review?  Or what priority? (A B C F - M) ').upper().strip()
         
         if pri == 'A' or pri == 'B' or pri == 'C' or pri == 'F':
             topfolder = 'PRIORITY-' + pri
+        elif pri == 'M':
+            topfolder = 'MANUAL-REVIEW'
         else:
             return
          
@@ -724,18 +725,18 @@ def cleantext(vv, bodytype = None):
 
     if bodytype == 'text':
 
-        vv = cleanreplacer(vv, '* * ', '****')
-        vv = cleanreplacer(vv, '- - ', '----')
-        vv = cleanreplacer(vv, '&nbsp;', ' ')
-        vv = cleanreplacer(vv, '&amp;', ' and ')
-        vv = cleanreplacer(vv, '==', '**')
-        vv = cleanreplacer(vv, '*=', '**')
-        vv = cleanreplacer(vv, '__', '**')
-        vv = cleanreplacer(vv, '*_', '**')
         vv = cleanreplacer(vv, '<', '-')
         vv = cleanreplacer(vv, '>', '-')
     
     
+    vv = cleanreplacer(vv, '* * ', '****')
+    vv = cleanreplacer(vv, '- - ', '----')
+    vv = cleanreplacer(vv, '&nbsp;', ' ')
+    vv = cleanreplacer(vv, '&amp;', ' and ')
+    vv = cleanreplacer(vv, '==', '**')
+    vv = cleanreplacer(vv, '*=', '**')
+    vv = cleanreplacer(vv, '__', '**')
+    vv = cleanreplacer(vv, '*_', '**')
     
     vv = cleanreplacer(vv, 'https:', 'http:')
     vv = re.sub("http://(\S+)", "", vv)
@@ -851,11 +852,10 @@ def folderselection():
         showing += 1
         print(showing, f.name)
         
-        if (showing == 30):
+        if (showing % 30 == 0):
             if exit_command(prettyinput('Press enter to show more folders, or q to quit: ')):
                 break
             else:
-                showing = 0
                 screen_clear()
 
     if len(folders) == 1:
