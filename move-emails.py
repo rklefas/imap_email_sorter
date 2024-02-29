@@ -6,6 +6,7 @@ import re
 from win32com.client import Dispatch
 from inputimeout import inputimeout, TimeoutOccurred
 import os
+import pathlib
 import random
 import textwrap
 import time
@@ -1025,6 +1026,8 @@ max_timeout = 60
 dynamic_timeout = max_timeout
 mailbox_server = None
 uptime_tracker = datetime.now()
+
+os.chdir(pathlib.Path(__file__).parent)
 
 while True:
 
