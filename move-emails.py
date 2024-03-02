@@ -55,7 +55,7 @@ def summarizer(msg, folder = None, clearing = False):
 
     
     raw = cleantext(msg.html, 'html')
-    raw = BeautifulSoup(raw).body.get_text()
+    raw = BeautifulSoup(raw, "html.parser").body.get_text()
     shrunken = cleantext(raw)
     bodysummary('html', msg.html, shrunken)
 
@@ -160,12 +160,14 @@ def spokeninput(q, defaultValue = None):
 def inputcontrols(num = None):
 
     if num == None:
-        num = spokeninput('What timeout for the inputs? ')
+        num = spokeninput('What timeout for the inputs?  0 will turn off timeouts, empty will change nothing: ')
     
     global dynamic_timeout
 
-    if num == '':
+    if num == '0':
         dynamic_timeout = None
+    elif num == '':
+        print('No change to timeout setting')
     else:
         dynamic_timeout = int(num)
         
@@ -700,7 +702,7 @@ def readability(raw, cleaned):
 def cleanbody(msg):
 
     html_cleaned = cleantext(msg.html, 'html')
-    html_cleaned = BeautifulSoup(html_cleaned).body.get_text()
+    html_cleaned = BeautifulSoup(html_cleaned, "html.parser").body.get_text()
     html_cleaned = cleantext(html_cleaned)
     
     text_cleaned = cleantext(msg.text, 'text')
@@ -831,7 +833,6 @@ def speakitem(vv):
         except Exception as e:
             Dispatch("SAPI.SpVoice").Speak('Recovering from exception. ')
             print(e)
-            Dispatch("SAPI.SpVoice").Speak(e)
 
 # ---------------
 
@@ -1022,11 +1023,10 @@ def mode_sort():
 # ---------------
 
 min_timeout = 5
-max_timeout = 60
+max_timeout = 300
 dynamic_timeout = max_timeout
 mailbox_server = None
 uptime_tracker = datetime.now()
-
 os.chdir(pathlib.Path(__file__).parent)
 
 while True:
