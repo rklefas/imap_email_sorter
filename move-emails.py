@@ -175,16 +175,18 @@ def inputcontrols(num = None):
     
 # ---------------
    
-def spokeninputtimeout(q, default, passed_timeout = None):
-    Dispatch("SAPI.SpVoice").Speak(q)
+def spokeninputtimeout(q, default, specific_timeout = None):
     
     global dynamic_timeout
     
-    if passed_timeout == None:
+    if specific_timeout == None:
         newtx = dynamic_timeout
     else:
-        newtx = passed_timeout
+        newtx = specific_timeout
 
+    if newtx != None and newtx > 30:
+        Dispatch("SAPI.SpVoice").Speak(q)
+    
     try:
         print('')
         print_divider()
@@ -202,20 +204,13 @@ def spokeninputtimeout(q, default, passed_timeout = None):
             else:
                 return spokeninputtimeout(q, default, newtx)
             
-#        dynamic_timeout = max_timeout
         return val
     except TimeoutOccurred:
-        Dispatch("SAPI.SpVoice").Speak('Defaulted to '+default)
-##        dynamic_timeout = max(min_timeout, int(dynamic_timeout / 2))
+    
+        if newtx != None and newtx > 30:
+            Dispatch("SAPI.SpVoice").Speak('Defaulted to '+default)
+
         return default
-
-# ---------------
-
-def speaknumber(key, val):
-    if val > 20:
-        speakline(key, str(val))
-    else:
-        println(key, str(val))
 
 # ---------------
 
@@ -224,8 +219,8 @@ def speakline(key, val):
     
     global dynamic_timeout
 
-    if dynamic_timeout != None:
-        Dispatch("SAPI.SpVoice").Speak(key + ' ' + val)
+    if dynamic_timeout != None and dynamic_timeout > 30:
+        Dispatch("SAPI.SpVoice").Speak(key + ' ' + str(val))
 
 # ---------------
 
@@ -644,7 +639,7 @@ def mode_read(folderx):
             alllength += len(shrunken)
             
         speakline('Time To Read', timetoread(alllength))
-        speaknumber('Emails Length', alllength)
+        speakline('Emails Length', alllength)
         print_divider()
 
         for index, msg in enumerate(preview):
@@ -935,7 +930,7 @@ def mode_sort():
     
     runtimecount = 0
     
-    for cycle in range(1, 200):
+    for cycle in range(1, 1000):
     
         if dynamic_timeout == min_timeout:
                     
@@ -996,7 +991,9 @@ def mode_sort():
             
         except Exception as e:
             speakline('Failed to fetch emails', str(e))
-            FILTERED_UIDS.append(selectedEmail.uid)
+            
+            server = refresh_connection('INBOX')
+            continue
 
 
         FOLDERSTACK = determinefolder(selectedEmail)
@@ -1009,8 +1006,8 @@ def mode_sort():
             counting = len(FILTERED_UIDS)
             runtimecount = runtimecount + counting
             
-            speaknumber("  Emails sent in " + yearX  + " from " + fromX , counting)
-            speaknumber("Total emails sorted", runtimecount)
+            speakline("  Emails sent in " + yearX  + " from " + fromX , counting)
+            speakline("Total emails sorted", runtimecount)
 
 
         except Exception as e:
@@ -1104,6 +1101,8 @@ while True:
 
     elif mode_selection == 'S':
 
+        inputcontrols('20')
+        
         mode_sort()
         
     elif exit_command(mode_selection):
